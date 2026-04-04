@@ -1,0 +1,179 @@
+/* --- BIẾN MÀU SẮC THEO CHUẨN AZURE --- */
+:root {
+    --azure-blue: #0078D4;
+    --azure-blue-hover: #005A9E;
+    --bg-light: #F3F2F1;
+    --bg-white: #FFFFFF;
+    --text-main: #323130;
+    --text-muted: #605E5C;
+    --border-color: #E1DFDD;
+    --success-color: #107C10;
+    --danger-color: #D13438;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+}
+
+body {
+    background-color: var(--bg-light);
+    color: var(--text-main);
+}
+
+.app-container {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* --- SIDEBAR --- */
+.sidebar {
+    width: 260px;
+    background-color: var(--bg-white);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    padding: 20px 0;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 20px 30px;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.nav-menu {
+    flex: 1;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 12px 24px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.nav-item:hover, .nav-item.active {
+    background-color: #f3f9fd;
+    color: var(--azure-blue);
+    border-right: 3px solid var(--azure-blue);
+}
+
+.sidebar-bottom {
+    padding: 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.storage-info { margin-bottom: 20px; font-size: 13px; color: var(--text-muted); }
+.storage-bar { width: 100%; height: 6px; background-color: var(--border-color); border-radius: 3px; margin: 8px 0; overflow: hidden; }
+.storage-fill { height: 100%; background-color: var(--azure-blue); border-radius: 3px; }
+
+.user-profile { display: flex; align-items: center; gap: 12px; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; }
+.user-info { display: flex; flex-direction: column; }
+.user-name { font-size: 14px; font-weight: 600; }
+.logout-btn { font-size: 12px; color: var(--danger-color); text-decoration: none; }
+
+/* --- MAIN CONTENT --- */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 40px;
+    background-color: var(--bg-light);
+}
+
+.search-box {
+    display: flex;
+    align-items: center;
+    background: var(--bg-white);
+    padding: 8px 15px;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+}
+.search-box input { border: none; outline: none; margin-left: 10px; width: 200px; }
+
+.content-wrapper { padding: 0 40px 40px; display: flex; flex-direction: column; gap: 25px; }
+
+/* --- UI CARDS --- */
+.card {
+    background: var(--bg-white);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+}
+
+.card h3 { margin-bottom: 20px; font-size: 18px; font-weight: 600; }
+
+/* --- UPLOAD ZONE --- */
+.drop-zone {
+    border: 2px dashed var(--azure-blue);
+    border-radius: 10px;
+    padding: 40px 20px;
+    text-align: center;
+    background-color: #f8fbff;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.drop-zone.dragover {
+    background-color: #e5f0fa;
+    border-color: var(--azure-blue-hover);
+    transform: scale(1.01);
+}
+
+.drop-icon { font-size: 48px; color: var(--azure-blue); margin-bottom: 15px; }
+.drop-zone h4 { font-size: 16px; margin-bottom: 5px; }
+.drop-zone p { color: var(--text-muted); font-size: 14px; margin-bottom: 20px; }
+
+.btn-primary { background: var(--azure-blue); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 500; transition: 0.2s; }
+.btn-primary:hover { background: var(--azure-blue-hover); }
+
+/* --- PROGRESS BAR ITEMS --- */
+.progress-container { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+.progress-item { display: flex; align-items: center; justify-content: space-between; background: var(--bg-light); padding: 12px 15px; border-radius: 8px; font-size: 14px; }
+.file-details { flex: 1; margin-left: 15px; }
+.file-details .pb-wrapper { width: 100%; height: 4px; background: var(--border-color); margin-top: 8px; border-radius: 2px; overflow: hidden; }
+.file-details .pb-fill { height: 100%; background: var(--azure-blue); width: 0%; transition: width 0.3s; }
+
+/* --- FILES TABLE & EMPTY STATE --- */
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.card-header h3 { margin-bottom: 0; }
+.btn-secondary { background: white; border: 1px solid var(--border-color); padding: 8px 15px; border-radius: 6px; cursor: pointer; }
+
+.empty-state { text-align: center; padding: 40px 0; }
+.empty-state img { opacity: 0.8; margin-bottom: 15px; }
+.empty-state h4 { color: var(--text-main); margin-bottom: 5px; }
+.empty-state p { color: var(--text-muted); font-size: 14px; }
+
+.file-table { width: 100%; border-collapse: collapse; text-align: left; }
+.file-table th { padding: 12px; border-bottom: 2px solid var(--border-color); color: var(--text-muted); font-weight: 500; font-size: 14px; }
+.file-table td { padding: 15px 12px; border-bottom: 1px solid var(--border-color); font-size: 14px; vertical-align: middle; }
+.file-table tbody tr:hover { background-color: #f9f9f9; }
+
+.file-name-cell { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+.file-name-cell i { color: var(--azure-blue); font-size: 18px; }
+
+.action-btns i { color: var(--text-muted); cursor: pointer; margin-right: 15px; transition: 0.2s; }
+.action-btns i:hover { color: var(--azure-blue); }
+.action-btns .fa-trash:hover { color: var(--danger-color); }
+
+.hidden { display: none; }
