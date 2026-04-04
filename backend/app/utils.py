@@ -26,3 +26,16 @@ def create_access_token(data: dict):
     # Ký và đóng dấu Thẻ bằng chữ ký bí mật
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+# 3. HÀM XÁC THỰC VÀ GIẢI MÃ JWT
+from jose import JWTError, jwt as jose_jwt
+
+def verify_access_token(token: str, credentials_exception):
+    try:
+        payload = jose_jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        return username
+    except JWTError:
+        raise credentials_exception

@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, ConfigDict
@@ -29,3 +30,7 @@ class UserLogin(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+# 5. Khuôn đổi mật khẩu
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str

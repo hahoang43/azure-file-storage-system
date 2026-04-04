@@ -1,11 +1,10 @@
 const API_URL = "http://127.0.0.1:8000";
 
-// ==========================================
+
 // 1. XỬ LÝ SỰ KIỆN ĐĂNG KÝ
-// ==========================================
+
 document.getElementById('registerForm').addEventListener('submit', async function (e) {
     e.preventDefault(); // Ngăn trình duyệt tải lại trang
-    alert("JS đã nhận được lệnh bấm nút!"); 
     const username = document.getElementById('register-username').value;
     const email = document.getElementById('register-email').value;
     const password = document.getElementById('register-password').value;
@@ -18,8 +17,6 @@ document.getElementById('registerForm').addEventListener('submit', async functio
         return;
     }
     errorDiv.textContent = ''; // Xóa lỗi cũ
-
-    // alert("JS đã nhận được lệnh bấm nút!"); // Nếu cần debug
 
     try {
         const response = await fetch(`${API_URL}/auth/register`, {
@@ -50,11 +47,8 @@ document.getElementById('registerForm').addEventListener('submit', async functio
     }
 });
 
-    
-    // ... (phần code lấy dữ liệu bên dưới giữ nguyên)
-// ==========================================
 // 2. XỬ LÝ SỰ KIỆN ĐĂNG NHẬP
-// ==========================================
+
 document.getElementById('loginForm').addEventListener('submit', async function (e) {
     e.preventDefault();
 
@@ -91,5 +85,18 @@ document.getElementById('loginForm').addEventListener('submit', async function (
     } catch (error) {
         errorDiv.textContent = "Không thể kết nối tới máy chủ!";
         console.error("Lỗi:", error);
+    }
+});
+document.addEventListener("DOMContentLoaded", function() {
+    const token = localStorage.getItem("mycloud_token");
+    const currentPath = window.location.pathname;
+
+    // Nếu người dùng ĐÃ có thẻ Token (đã đăng nhập) mà cố tình vào trang auth.html
+    // -> Lập tức đẩy họ về trang chủ (index.html)
+    if (token && (currentPath.includes("auth.html") || currentPath.endsWith("/"))) {
+        // Tạm thời đẩy về index.html. Sau này bạn code xong trang quản lý file thì đổi thành dashboard.html nhé!
+        if(currentPath.includes("auth.html")) {
+            window.location.href = "index.html";
+        }
     }
 });

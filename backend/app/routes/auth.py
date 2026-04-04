@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-
+from fastapi.security import OAuth2PasswordBearer
 # Import các file nội bộ của dự án
 from app import models, schemas, utils
 from app.database import get_db
@@ -9,7 +9,21 @@ router = APIRouter(
     prefix="/auth",
     tags=["Xac thuc nguoi dung"]
 )
-
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Không thể xác thực người dùng",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    # Giải mã token thông qua hàm trong utils.py
+    username = utils.verify_access_token(token, credentials_exception)
+    
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if user is None:
+        raise credentials_exception
+    return user
 # ==========================================
 # 1. API ĐĂNG KÝ TÀI KHOẢN (REGISTER)
 # ==========================================
@@ -71,3 +85,24 @@ def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_db)):
 
     # 4. Trả Thẻ về cho người dùng
     return {"access_token": access_token, "token_type": "bearer"}
+
+@router.get("/me", response_model=schemas.UserResponse)
+def read_users_me(current_user: models.User = Depends(get_current_user)):
+    return current_user
+
+# ==========================================
+# 3. API ĐỔI MẬT KHẨU (CHANGE PASSWORD)
+# ==========================================
+@router.post("/change-password")
+def change_password(
+    req: schemas.ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    # Kiểm tra mật khẩu cũ
+    if not utils.verify_password(req.old_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Mật khẩu cũ không đúng!")
+    # Cập nhật mật khẩu mới
+    current_user.password_hash = utils.get_password_hash(req.new_password)
+    db.commit()
+    return {"success": True, "msg": "Đổi mật khẩu thành công!"}
