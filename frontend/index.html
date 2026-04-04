@@ -1,381 +1,414 @@
 <!DOCTYPE html>
-
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cloud Storage UI</title>
-
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-
 <style>
-body { background:#eef2f7; font-family:'Segoe UI'; }
-mark, span {
-    background: #ffe066;
-    padding: 2px 4px;
-    border-radius: 5px;
-}
-/* SIDEBAR */
-#sidebar {
-    height:100vh;
-    background: linear-gradient(180deg,#0d6efd,#3a8bfd);
-    color:white;
-}
-#sidebar a {
-    color:white;
-    padding:12px;
-    display:block;
-    border-radius:8px;
-}
-#sidebar a:hover { background:rgba(255,255,255,0.2); }
-
-/* TOPBAR */
-.topbar { background:white; border-bottom:1px solid #ddd; }
-
-/* SEARCH */
-#searchInput { border-radius:30px; }
-
-/* FILE CARD */
-.file-card {
-    border-radius:15px;
-    box-shadow:0 5px 15px rgba(0,0,0,0.1);
-    transition:0.25s;
-}
-.file-card:hover {
-    transform:translateY(-6px);
-    box-shadow:0 12px 25px rgba(0,0,0,0.2);
-}
+:root { --sidebar-start: #0b5ed7; --sidebar-end: #0f7bff; }
+body { background: #eef3fb; font-family: "Segoe UI", sans-serif; }
+.sidebar { min-height: 100vh; background: linear-gradient(180deg, var(--sidebar-start), var(--sidebar-end)); color: #fff; }
+.sidebar a { color: rgba(255,255,255,0.92); text-decoration: none; }
+.sidebar a:hover, .sidebar a.active { background: rgba(255,255,255,0.16); color: #fff; }
+.topbar { background: rgba(255,255,255,0.88); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(15, 23, 42, 0.08); }
+.file-card { border: 0; border-radius: 18px; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08); transition: transform .2s ease, box-shadow .2s ease; }
+.file-card:hover { transform: translateY(-4px); box-shadow: 0 18px 30px rgba(15, 23, 42, 0.14); }
+.soft-pill { background: rgba(13, 110, 253, 0.1); color: #0d6efd; border-radius: 999px; padding: .35rem .75rem; }
+.drop-zone { border: 2px dashed #b8c7e6; border-radius: 18px; background: rgba(255,255,255,0.72); }
+.drop-zone.dragover { border-color: #0d6efd; background: rgba(13,110,253,0.08); }
+.muted-link { color: #5f6c80; text-decoration: none; }
+.muted-link:hover { color: #0d6efd; }
 </style>
-
 </head>
-
 <body>
-
 <div class="container-fluid">
-<div class="row">
+    <div class="row g-0">
+        <aside class="col-12 col-lg-2 sidebar p-3 p-lg-4">
+            <div class="d-flex align-items-center gap-2 mb-4">
+                <div class="bg-white bg-opacity-20 rounded-3 p-2"><i class="bi bi-cloud-fill fs-4"></i></div>
+                <div>
+                    <div class="fw-bold fs-5">My Drive</div>
+                    <small class="text-white-50">Azure personal storage</small>
+                </div>
+            </div>
 
-<!-- SIDEBAR -->
+            <button class="btn btn-light w-100 mb-3 fw-semibold" onclick="openCreateModal()">
+                <i class="bi bi-folder-plus me-1"></i> New Folder
+            </button>
 
-<div class="col-2 p-3" id="sidebar">
-    <h4 class="mb-4">☁ My Drive</h4>
+            <nav class="d-grid gap-2">
+                <a class="active rounded-3 px-3 py-2" href="index.html"><i class="bi bi-grid-1x2 me-2"></i>My Files</a>
+                <a class="rounded-3 px-3 py-2" href="trash.html"><i class="bi bi-trash3 me-2"></i>Trash</a>
+                <a class="rounded-3 px-3 py-2" href="shared.html"><i class="bi bi-share me-2"></i>Shared Links</a>
+            </nav>
+        </aside>
 
-<button class="btn btn-light w-100 mb-2" onclick="openCreateModal()">
-    <i class="bi bi-folder-plus"></i> New Folder
-</button>
+        <main class="col-12 col-lg-10">
+            <div class="topbar px-3 px-lg-4 py-3 d-flex flex-column flex-md-row gap-3 align-items-md-center justify-content-between">
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <input id="searchInput" class="form-control rounded-pill" style="max-width: 380px;" placeholder="🔍 Search files or folders" oninput="searchFile()">
+                    <span class="soft-pill d-inline-flex align-items-center gap-2"><i class="bi bi-shield-check"></i> JWT protected</span>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <a class="muted-link fw-semibold" href="landing.html">Landing</a>
+                    <span class="text-secondary">👤 User</span>
+                </div>
+            </div>
 
-<a href="#"><i class="bi bi-folder"></i> My Files</a>
-<a href="#"><i class="bi bi-share"></i> Shared</a>
+            <div class="px-3 px-lg-4 pt-3">
+                <ol class="breadcrumb mb-2" id="breadcrumb"></ol>
+                <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+                    <button id="gridBtn" class="btn btn-outline-primary btn-sm">Grid</button>
+                    <button id="listBtn" class="btn btn-outline-secondary btn-sm">List</button>
+                    <span class="text-secondary small">Drag & drop lên vùng trống bên dưới để mô phỏng upload.</span>
+                </div>
+            </div>
 
+            <div class="px-3 px-lg-4 pb-4">
+                <div id="dropZone" class="drop-zone p-4 mb-4 text-center">
+                    <div class="fs-1 text-primary"><i class="bi bi-cloud-arrow-up"></i></div>
+                    <h5 class="mb-1">Drop files here</h5>
+                    <p class="text-secondary mb-0">Demo vùng kéo thả cho upload nhiều file và hiển thị tiến trình.</p>
+                </div>
+
+                <div class="row g-3" id="fileContainer"></div>
+            </div>
+        </main>
+    </div>
 </div>
 
-<!-- MAIN -->
-
-<div class="col-10">
-
-<!-- TOPBAR -->
-<div class="d-flex justify-content-between p-3 topbar">
-    <input id="searchInput" class="form-control w-50"
-           placeholder="🔍 Search..." oninput="searchFile()">
-    <span>👤 User</span>
+<div class="modal fade" id="createModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-0">
+                <h5 class="modal-title">Create Folder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-0">
+                <label class="form-label">Folder name</label>
+                <input id="folderName" class="form-control" placeholder="New folder">
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button class="btn btn-primary w-100" onclick="createFolder()">Create</button>
+            </div>
+        </div>
+    </div>
 </div>
 
-<!-- BREADCRUMB -->
-<div class="p-3">
-    <ol class="breadcrumb" id="breadcrumb"></ol>
-</div>
-<div class="px-3 mb-2 d-flex gap-2">
-    <button id="gridBtn" class="btn btn-outline-primary btn-sm">Grid</button>
-    <button id="listBtn" class="btn btn-outline-secondary btn-sm">List</button>
-</div>
-
-<!-- FILE LIST -->
-<div class="container-fluid">
-    <div class="row" id="fileContainer"></div>
+<div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-0">
+                <h5 class="modal-title">Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-0 text-center" id="previewContent"></div>
+        </div>
+    </div>
 </div>
 
-</div>
-</div>
+<div class="modal fade" id="shareModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-0">
+                <div>
+                    <h5 class="modal-title mb-1">Tạo Link Chia Sẻ</h5>
+                    <small class="text-secondary">Tạo link công khai có thời hạn cho file đã chọn.</small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-0">
+                <div class="mb-3">
+                    <label class="form-label">File</label>
+                    <input id="shareFileName" class="form-control" readonly>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Ngày hết hạn</label>
+                    <select id="shareExpiry" class="form-select">
+                        <option value="1">Sau 1 ngày</option>
+                        <option value="7" selected>Sau 7 ngày</option>
+                        <option value="30">Sau 30 ngày</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Link chia sẻ</label>
+                    <div class="input-group">
+                        <input id="shareLink" class="form-control" readonly>
+                        <button class="btn btn-outline-primary" type="button" onclick="copyShareLink()">Copy</button>
+                    </div>
+                </div>
+                <div class="small text-secondary">Link này sẽ dẫn đến trang download công khai dành cho người không đăng nhập.</div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button class="btn btn-primary w-100" onclick="saveShareLink()">Tạo link</button>
+            </div>
+        </div>
+    </div>
 </div>
 
-
-<!-- MODAL CREATE -->
-
-<div class="modal fade" id="createModal">
-<div class="modal-dialog">
-<div class="modal-content p-3">
-    <h5>Create Folder</h5>
-    <input id="folderName" class="form-control mb-2">
-    <button class="btn btn-primary w-100" onclick="createFolder()">Create</button>
-</div>
-</div>
-</div>
-
-<!-- MODAL PREVIEW -->
-
-<div class="modal fade" id="previewModal">
-<div class="modal-dialog modal-lg">
-<div class="modal-content p-3 text-center">
-    <h5>Preview</h5>
-    <div id="previewContent"></div>
-</div>
-</div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-
-// ===== DATA =====
 let files = [
- {id:1,name:"Documents",type:"folder",parent:null},
- {id:2,name:"Image.png",type:"image",parent:null},
- {id:3,name:"File.pdf",type:"file",parent:null},
- {id:4,name:"Python",type:"folder",parent:1}
+    { id: 1, name: "Documents", type: "folder", parent: null, size: "-" },
+    { id: 2, name: "Image.png", type: "image", parent: null, size: "2.4 MB" },
+    { id: 3, name: "File.pdf", type: "file", parent: null, size: "4.8 MB" },
+    { id: 4, name: "Python", type: "folder", parent: 1, size: "-" },
+    { id: 5, name: "Notes.txt", type: "text", parent: 1, size: "12 KB" }
 ];
 
 let currentFolder = null;
 let currentPath = ["Home"];
+let viewMode = "grid";
+let activeShareFile = null;
+let searchTimeout;
 
-// ===== RENDER =====
-function renderFiles(list){
+function getChildFiles(folderId) {
+    return files.filter(file => file.parent === folderId);
+}
+
+function getFileIcon(file) {
+    if (file.type === "folder") return "bi-folder-fill text-warning";
+    if (file.type === "image") return "bi-image text-success";
+    if (file.name.toLowerCase().endsWith(".pdf")) return "bi-file-earmark-pdf text-danger";
+    if (file.name.toLowerCase().endsWith(".txt")) return "bi-file-earmark-text text-info";
+    return "bi-file-earmark";
+}
+
+function escapeRegExp(text) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function renderFiles(list) {
     const container = document.getElementById("fileContainer");
     container.innerHTML = "";
 
-    list.forEach(f => {
-
-        let icon = "bi-file-earmark";
-        if(f.type === "folder") icon = "bi-folder-fill text-warning";
-        if(f.type === "image") icon = "bi-image text-success";
-
-        if(viewMode === "grid"){
+    list.forEach(file => {
+        const icon = getFileIcon(file);
+        if (viewMode === "grid") {
             container.innerHTML += `
-            <div class="col-md-3 mb-4">
-                <div class="card file-card p-3 text-center"
-                     onclick="openItem(${f.id})">
-
-                    <i class="bi ${icon} fs-1"></i>
-                    <h6>${f.name}</h6>
-
-                    <div class="d-flex mt-2">
-                        <button class="btn btn-outline-secondary btn-sm w-50"
-                            onclick="event.stopPropagation(); renameItem(${f.id})">
-                            Rename
-                        </button>
-
-                        <button class="btn btn-outline-danger btn-sm w-50 ms-1"
-                            onclick="event.stopPropagation(); deleteItem(${f.id})">
-                            Delete
-                        </button>
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="card file-card h-100 p-3" onclick="openItem(${file.id})">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <i class="bi ${icon} fs-1"></i>
+                            <span class="badge text-bg-light text-secondary">${file.size}</span>
+                        </div>
+                        <h6 class="mt-3 mb-1">${file.name}</h6>
+                        <small class="text-secondary">${file.type === "folder" ? "Folder" : "File"}</small>
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="event.stopPropagation(); renameItem(${file.id})">Rename</button>
+                            <button class="btn btn-outline-primary btn-sm flex-fill" onclick="event.stopPropagation(); openShareModal(${file.id})">Share</button>
+                            <button class="btn btn-outline-danger btn-sm flex-fill" onclick="event.stopPropagation(); deleteItem(${file.id})">Delete</button>
+                        </div>
                     </div>
-                </div>
-            </div>`;
-        }
-
-        else {
+                </div>`;
+        } else {
             container.innerHTML += `
-            <div class="col-12 mb-2">
-                <div class="d-flex justify-content-between align-items-center p-2 bg-white rounded shadow-sm"
-                     onclick="openItem(${f.id})">
-
-                    <div>
-                        <i class="bi ${icon} me-2"></i>
-                        ${f.name}
+                <div class="col-12">
+                    <div class="card file-card px-3 py-2" onclick="openItem(${file.id})">
+                        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <i class="bi ${icon} fs-3"></i>
+                                <div>
+                                    <div class="fw-semibold">${file.name}</div>
+                                    <div class="small text-secondary">${file.type === "folder" ? "Folder" : "File"}</div>
+                                </div>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <span class="badge text-bg-light text-secondary align-self-center">${file.size}</span>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="event.stopPropagation(); renameItem(${file.id})">Rename</button>
+                                <button class="btn btn-outline-primary btn-sm" onclick="event.stopPropagation(); openShareModal(${file.id})">Share</button>
+                                <button class="btn btn-outline-danger btn-sm" onclick="event.stopPropagation(); deleteItem(${file.id})">Delete</button>
+                            </div>
+                        </div>
                     </div>
-
-                    <div>
-                        <button class="btn btn-sm btn-outline-secondary"
-                            onclick="event.stopPropagation(); renameItem(${f.id})">
-                            Rename
-                        </button>
-
-                        <button class="btn btn-sm btn-outline-danger ms-1"
-                            onclick="event.stopPropagation(); deleteItem(${f.id})">
-                            Delete
-                        </button>
-                    </div>
-
-                </div>
-            </div>`;
+                </div>`;
         }
-
     });
 }
 
-function highlight(text, keyword){
-    const regex = new RegExp(`(${keyword})`, "gi");
-    return text.replace(regex, `<span style="background:yellow">$1</span>`);
+function highlight(text, keyword) {
+    const regex = new RegExp(`(${escapeRegExp(keyword)})`, "gi");
+    return text.replace(regex, '<span class="bg-warning-subtle">$1</span>');
 }
 
-function renderFilesHighlight(list, keyword){
+function renderFilesHighlight(list, keyword) {
     const container = document.getElementById("fileContainer");
     container.innerHTML = "";
 
-    list.forEach(f => {
-
-        let icon = "bi-file-earmark";
-        if(f.type === "folder") icon = "bi-folder-fill text-warning";
-        if(f.type === "image") icon = "bi-image text-success";
-
-        const nameHighlighted = highlight(f.name, keyword);
-
+    list.forEach(file => {
+        const icon = getFileIcon(file);
+        const nameHighlighted = highlight(file.name, keyword);
         container.innerHTML += `
-        <div class="col-md-3 mb-4">
-            <div class="card file-card p-3 text-center"
-                 onclick="openItem(${f.id})">
-
-                <i class="bi ${icon} fs-1"></i>
-                <h6>${nameHighlighted}</h6>
-
-                <div class="d-flex mt-2">
-                    <button class="btn btn-outline-secondary btn-sm w-50"
-                        onclick="event.stopPropagation(); renameItem(${f.id})">
-                        Rename
-                    </button>
-
-                    <button class="btn btn-outline-danger btn-sm w-50 ms-1"
-                        onclick="event.stopPropagation(); deleteItem(${f.id})">
-                        Delete
-                    </button>
+            <div class="col-12 col-sm-6 col-xl-3">
+                <div class="card file-card h-100 p-3" onclick="openItem(${file.id})">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <i class="bi ${icon} fs-1"></i>
+                        <span class="badge text-bg-light text-secondary">${file.size}</span>
+                    </div>
+                    <h6 class="mt-3 mb-1">${nameHighlighted}</h6>
+                    <small class="text-secondary">${file.type === "folder" ? "Folder" : "File"}</small>
+                    <div class="d-flex gap-2 mt-3">
+                        <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="event.stopPropagation(); renameItem(${file.id})">Rename</button>
+                        <button class="btn btn-outline-primary btn-sm flex-fill" onclick="event.stopPropagation(); openShareModal(${file.id})">Share</button>
+                        <button class="btn btn-outline-danger btn-sm flex-fill" onclick="event.stopPropagation(); deleteItem(${file.id})">Delete</button>
+                    </div>
                 </div>
-            </div>
-        </div>`;
+            </div>`;
     });
 }
 
-// ===== LOAD =====
-function loadFilesByPath(){
-    const list = files.filter(f=>f.parent===currentFolder);
-    renderFiles(list);
+function renderBreadcrumb() {
+    const breadcrumb = document.getElementById("breadcrumb");
+    breadcrumb.innerHTML = "";
+
+    currentPath.forEach((pathLabel, index) => {
+        breadcrumb.innerHTML += `
+            <li class="breadcrumb-item ${index === currentPath.length - 1 ? 'active' : ''}" onclick="goToPath(${index})" style="cursor:pointer">
+                ${pathLabel}
+            </li>`;
+    });
+}
+
+function loadFilesByPath() {
+    renderFiles(getChildFiles(currentFolder));
     renderBreadcrumb();
 }
 
-// ===== BREADCRUMB =====
-function renderBreadcrumb(){
-    const bc=document.getElementById("breadcrumb");
-    bc.innerHTML="";
-
-    currentPath.forEach((p,i)=>{
-        bc.innerHTML+=`
-        <li class="breadcrumb-item ${i===currentPath.length-1?'active':''}"
-            onclick="goToPath(${i})" style="cursor:pointer">
-            ${p}
-        </li>`;
-    });
-}
-
-function goToPath(index){
-    currentPath=currentPath.slice(0,index+1);
-
-    if(index===0) currentFolder=null;
-    else currentFolder=files.find(f=>f.name===currentPath[index]).id;
-
+function goToPath(index) {
+    currentPath = currentPath.slice(0, index + 1);
+    currentFolder = index === 0 ? null : files.find(file => file.name === currentPath[index] && file.type === "folder").id;
     loadFilesByPath();
 }
 
-// ===== CREATE =====
-function openCreateModal(){
-    new bootstrap.Modal(document.getElementById('createModal')).show();
+function openCreateModal() {
+    bootstrap.Modal.getOrCreateInstance(document.getElementById("createModal")).show();
 }
 
-function createFolder(){
-    const name=document.getElementById("folderName").value;
-    if(!name) return;
+function createFolder() {
+    const folderName = document.getElementById("folderName").value.trim();
+    if (!folderName) return;
 
     files.push({
-        id:Date.now(),
-        name,
-        type:"folder",
-        parent:currentFolder
+        id: Date.now(),
+        name: folderName,
+        type: "folder",
+        parent: currentFolder,
+        size: "-"
     });
 
     document.getElementById("folderName").value = "";
-
     loadFilesByPath();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById("createModal")).hide();
 }
 
-// ===== DELETE =====
-function deleteItem(id){
-    function deleteRecursive(fid){
-        files.filter(f=>f.parent===fid)
-             .forEach(c=>deleteRecursive(c.id));
-        files=files.filter(f=>f.id!==fid);
+function deleteItem(id) {
+    function deleteRecursive(fileId) {
+        getChildFiles(fileId).forEach(child => deleteRecursive(child.id));
+        files = files.filter(file => file.id !== fileId);
     }
+
     deleteRecursive(id);
     loadFilesByPath();
 }
 
-// ===== RENAME =====
-function renameItem(id){
-    const newName=prompt("Tên mới:");
-    if(!newName) return;
+function renameItem(id) {
+    const newName = prompt("Tên mới:");
+    if (!newName) return;
 
-    files=files.map(f=>{
-        if(f.id===id) f.name=newName;
-        return f;
-    });
-
+    files = files.map(file => file.id === id ? { ...file, name: newName } : file);
     loadFilesByPath();
 }
 
-// ===== SEARCH =====
-let searchTimeout;
-
-function searchFile(){
+function searchFile() {
     clearTimeout(searchTimeout);
-
     searchTimeout = setTimeout(() => {
-
-        const key = document.getElementById("searchInput").value.trim().toLowerCase();
-
-        // Nếu rỗng → load lại folder
-        if(key === ""){
+        const keyword = document.getElementById("searchInput").value.trim().toLowerCase();
+        if (!keyword) {
             loadFilesByPath();
             return;
         }
 
-        const result = files.filter(f =>
-            f.name.toLowerCase().includes(key)
-        );
-
-        renderFilesHighlight(result, key);
-
-    }, 300); // delay 300ms cho mượt
+        const result = files.filter(file => file.name.toLowerCase().includes(keyword));
+        renderFilesHighlight(result, keyword);
+    }, 200);
 }
 
-// ===== OPEN =====
-function openItem(id){
-    const file=files.find(f=>f.id===id);
+function openItem(id) {
+    const file = files.find(item => item.id === id);
+    if (!file) return;
 
-    if(file.type==="folder"){
-        currentFolder=file.id;
+    if (file.type === "folder") {
+        currentFolder = file.id;
         currentPath.push(file.name);
         loadFilesByPath();
-    } else previewFile(file);
+        return;
+    }
+
+    previewFile(file);
 }
 
-// ===== PREVIEW =====
-function previewFile(file){
-    let content="";
-
-    if(file.type==="image"){
-        content=`<img src="https://via.placeholder.com/400" class="img-fluid">`;
-    }
-    else if(file.name.endsWith(".pdf")){
-        content=`<iframe src="https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf"
-                 width="100%" height="500px"></iframe>`;
-    }
-    else{
-        content=`<p>${file.name}</p>`;
+function previewFile(file) {
+    let content = "";
+    if (file.type === "image") {
+        content = `<img src="https://via.placeholder.com/900x520" class="img-fluid rounded-4" alt="preview">`;
+    } else if (file.name.toLowerCase().endsWith(".pdf")) {
+        content = `<iframe src="https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf" width="100%" height="520px" class="rounded-4 border-0"></iframe>`;
+    } else {
+        content = `<div class="p-4 bg-light rounded-4 text-start"><div class="fw-semibold mb-2">${file.name}</div><div class="text-secondary">Preview demo cho file text hoặc tài liệu.</div></div>`;
     }
 
-    document.getElementById("previewContent").innerHTML=content;
-    new bootstrap.Modal(document.getElementById('previewModal')).show();
+    document.getElementById("previewContent").innerHTML = content;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById("previewModal")).show();
 }
 
-// ===== VIEW MODE =====
-let viewMode = "grid";
+function buildShareUrl(file, expiryDays) {
+    const params = new URLSearchParams({
+        name: file.name,
+        size: file.size,
+        expires: expiryDays,
+        source: "index"
+    });
+    return `${window.location.origin}${window.location.pathname.replace(/index\.html$/, "")}download.html?${params.toString()}`;
+}
 
-// ===== EVENT BUTTON =====
+function openShareModal(id) {
+    const file = files.find(item => item.id === id);
+    if (!file) return;
+
+    activeShareFile = file;
+    document.getElementById("shareFileName").value = file.name;
+    document.getElementById("shareLink").value = buildShareUrl(file, document.getElementById("shareExpiry").value);
+    bootstrap.Modal.getOrCreateInstance(document.getElementById("shareModal")).show();
+}
+
+function saveShareLink() {
+    if (!activeShareFile) return;
+    document.getElementById("shareLink").value = buildShareUrl(activeShareFile, document.getElementById("shareExpiry").value);
+    alert("Đã tạo link chia sẻ mẫu.");
+}
+
+async function copyShareLink() {
+    const shareLink = document.getElementById("shareLink").value;
+    try {
+        await navigator.clipboard.writeText(shareLink);
+    } catch (error) {
+        const tempInput = document.createElement("input");
+        tempInput.value = shareLink;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand("copy");
+        tempInput.remove();
+    }
+}
+
+document.getElementById("shareExpiry").addEventListener("change", () => {
+    if (activeShareFile) {
+        document.getElementById("shareLink").value = buildShareUrl(activeShareFile, document.getElementById("shareExpiry").value);
+    }
+});
+
 document.getElementById("gridBtn").onclick = () => {
     viewMode = "grid";
     loadFilesByPath();
@@ -386,10 +419,19 @@ document.getElementById("listBtn").onclick = () => {
     loadFilesByPath();
 };
 
-// ===== INIT =====
+const dropZone = document.getElementById("dropZone");
+dropZone.addEventListener("dragover", event => {
+    event.preventDefault();
+    dropZone.classList.add("dragover");
+});
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+dropZone.addEventListener("drop", event => {
+    event.preventDefault();
+    dropZone.classList.remove("dragover");
+    alert(`Đã nhận ${event.dataTransfer.files.length} file để upload.`);
+});
+
 loadFilesByPath();
-
 </script>
-
 </body>
 </html>
