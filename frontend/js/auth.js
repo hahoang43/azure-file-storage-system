@@ -1,0 +1,95 @@
+const API_URL = "http://127.0.0.1:8000";
+
+// ==========================================
+// 1. XỬ LÝ SỰ KIỆN ĐĂNG KÝ
+// ==========================================
+document.getElementById('registerForm').addEventListener('submit', async function (e) {
+    e.preventDefault(); // Ngăn trình duyệt tải lại trang
+    alert("JS đã nhận được lệnh bấm nút!"); 
+    const username = document.getElementById('register-username').value;
+    const email = document.getElementById('register-email').value;
+    const password = document.getElementById('register-password').value;
+    const confirm = document.getElementById('register-confirm').value;
+    const errorDiv = document.getElementById('register-error');
+
+    // Kiểm tra mật khẩu
+    if (password !== confirm) {
+        errorDiv.textContent = 'Mật khẩu xác nhận không khớp!';
+        return;
+    }
+    errorDiv.textContent = ''; // Xóa lỗi cũ
+
+    // alert("JS đã nhận được lệnh bấm nút!"); // Nếu cần debug
+
+    try {
+        const response = await fetch(`${API_URL}/auth/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                username: username,
+                email: email,
+                password: password
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert("Đăng ký thành công! Vui lòng đăng nhập.");
+            // Chuyển sang tab Đăng nhập
+            showTab(true);
+            // Tự động điền sẵn tên đăng nhập cho tiện
+            document.getElementById('login-username').value = username;
+            document.getElementById('registerForm').reset();
+        } else {
+            errorDiv.textContent = data.detail || "Đăng ký thất bại!";
+        }
+    } catch (error) {
+        errorDiv.textContent = "Không thể kết nối tới máy chủ!";
+        console.error("Lỗi:", error);
+    }
+});
+
+    
+    // ... (phần code lấy dữ liệu bên dưới giữ nguyên)
+// ==========================================
+// 2. XỬ LÝ SỰ KIỆN ĐĂNG NHẬP
+// ==========================================
+document.getElementById('loginForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const username = document.getElementById('login-username').value;
+    const password = document.getElementById('login-password').value;
+    const errorDiv = document.getElementById('login-error');
+
+    errorDiv.textContent = ''; // Xóa lỗi cũ
+
+    try {
+        const response = await fetch(`${API_URL}/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                username: username,
+                password: password
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            // LƯU THẺ THÔNG HÀNH (TOKEN) VÀO BỘ NHỚ TRÌNH DUYỆT
+            localStorage.setItem("mycloud_token", data.access_token);
+
+            alert("Đăng nhập thành công!");
+
+            // Chuyển hướng người dùng vào trang trong của hệ thống
+            window.location.href = "index.html";
+        } else {
+            // Sai mật khẩu hoặc tài khoản
+            errorDiv.textContent = data.detail || "Sai thông tin đăng nhập!";
+        }
+    } catch (error) {
+        errorDiv.textContent = "Không thể kết nối tới máy chủ!";
+        console.error("Lỗi:", error);
+    }
+});
