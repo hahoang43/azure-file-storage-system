@@ -1,0 +1,32 @@
+#sidebar {
+    background: linear-gradient(180deg, #0d6efd, #0056b3);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem;
+    height: 100vh;
+}
+
+#sidebar a {
+    color: rgba(255, 255, 255, 0.8);
+    padding: 12px 15px;
+    display: block;
+    text-decoration: none;
+    border-radius: 10px;
+    margin-bottom: 5px;
+    transition: 0.3s;
+    font-weight: 500;
+}
+
+#sidebar a:hover,
+#sidebar a.active {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.quota-section {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    padding: 15px;
+    margin-top: auto;
+}

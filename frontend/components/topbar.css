@@ -1,0 +1,24 @@
+.topbar {
+    background: white;
+    border-bottom: 1px solid #eee;
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+    height: 64px;
+}
+
+#searchInput {
+    border-radius: 24px !important;
+    border: 1px solid #dfe1e5 !important;
+    background: #f1f3f4 !important;
+    height: 45px;
+    font-size: 0.95rem;
+    box-shadow: none;
+    transition: all 0.2s;
+}
+
+#searchInput:focus {
+    background: white !important;
+    box-shadow: 0 1px 6px rgba(32, 33, 36, 0.28) !important;
+    border-color: transparent !important;
+}
