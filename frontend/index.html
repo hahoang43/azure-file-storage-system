@@ -28,10 +28,20 @@
                             <nav aria-label="breadcrumb" class="me-3">
                                 <ol class="breadcrumb mb-0" id="breadcrumb" style="font-weight: 500;"></ol>
                             </nav>
-                            <div class="flex-grow-1">
-                            </div>
+                            <div class="flex-grow-1" id="sectionTitle"></div>
                         </div>
-                        <div class="col-md-4 col-12 d-flex justify-content-end align-items-center">
+                        <div class="col-md-4 col-12 d-flex justify-content-end align-items-center gap-2">
+                            <div class="btn-group shadow-sm bg-white rounded border" id="sectionSwitcher">
+                                <button id="filesSectionBtn" class="btn btn-light btn-sm active border-0 px-3" onclick="switchSection('files')">
+                                    <i class="bi bi-folder2-open"></i>
+                                </button>
+                                <button id="sharedSectionBtn" class="btn btn-light btn-sm border-0 px-3" onclick="switchSection('shared')">
+                                    <i class="bi bi-share"></i>
+                                </button>
+                                <button id="trashSectionBtn" class="btn btn-light btn-sm border-0 px-3" onclick="switchSection('trash')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
                             <div class="btn-group shadow-sm bg-white rounded border">
                                 <button id="gridBtn" class="btn btn-light btn-sm active border-0 px-3"><i
                                         class="bi bi-grid-3x3-gap-fill"></i></button>
@@ -46,8 +56,9 @@
         </div>
     </div>
     <script>
+        const API_BASE_URL = "http://127.0.0.1:8000";
         // Tải component sidebar và topbar vào index.html, sau đó mới chạy các script phụ thuộc DOM
-        window.addEventListener('DOMContentLoaded', function () {
+        globalThis.addEventListener('DOMContentLoaded', function () {
             Promise.all([
                 fetch('components/sidebar.html').then(r => r.text()).then(html => {
                     document.getElementById('sidebar-container').innerHTML = html;
@@ -57,6 +68,7 @@
                 })
             ]).then(() => {
                 // Sau khi đã render xong sidebar/topbar, mới chạy các script phụ thuộc DOM
+                if (typeof setActiveNav === 'function') setActiveNav();
                 if (typeof loadQuota === 'function') loadQuota();
 
                 // Hiển thị tên người dùng từ localStorage (username)
@@ -88,7 +100,7 @@
             const token = localStorage.getItem("mycloud_token");
             if (!token) return;
             try {
-                const res = await fetch("http://127.0.0.1:8000/auth/me", {
+                const res = await fetch(`${API_BASE_URL}/auth/me`, {
                     headers: { "Authorization": `Bearer ${token}` }
                 });
                 if (!res.ok) return;
@@ -100,6 +112,7 @@
                 document.getElementById("quotaBar").style.width = percent + "%";
                 document.getElementById("quotaBar").textContent = percent + "%";
             } catch (e) {
+                console.error("Load quota error:", e);
                 document.getElementById("quotaText").textContent = "Không lấy được quota";
             }
         }
@@ -111,9 +124,90 @@
             { id: 3, name: "File.pdf", type: "file", parent: null },
             { id: 4, name: "Python", type: "folder", parent: 1 }
         ];
+        let sharedLinks = [
+            {
+                id: 1,
+                fileName: "ProjectPlan.pdf",
+                shareLink: "download.html?name=ProjectPlan.pdf&size=4.8%20MB",
+                expiresAt: "2026-04-12",
+                createdAt: "2026-04-05"
+            },
+            {
+                id: 2,
+                fileName: "Image.png",
+                shareLink: "download.html?name=Image.png&size=2.4%20MB",
+                expiresAt: "2026-04-06",
+                createdAt: "2026-04-05"
+            }
+        ];
+        let trashFiles = [
+            { id: 101, name: "Old_Report.pdf", type: "file", deletedAt: "2026-04-04 14:20", size: "6.2 MB" },
+            { id: 102, name: "Archive", type: "folder", deletedAt: "2026-04-04 16:05", size: "-" },
+            { id: 103, name: "Holiday.jpg", type: "image", deletedAt: "2026-04-05 08:40", size: "3.1 MB" }
+        ];
 
         let currentFolder = null;
         let currentPath = ["Home"];
+        let currentSection = "files";
+
+        function formatDateTime(isoValue) {
+            if (!isoValue) return "-";
+            const date = new Date(isoValue);
+            if (Number.isNaN(date.getTime())) return isoValue;
+            return date.toLocaleString("vi-VN");
+        }
+
+        function formatSize(bytes) {
+            const size = Number(bytes || 0);
+            if (!Number.isFinite(size) || size <= 0) return "0 B";
+            if (size < 1024) return `${size} B`;
+            if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+            if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+            return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+        }
+
+        async function loadSharedLinks() {
+            const token = localStorage.getItem("mycloud_token");
+            if (!token) {
+                if (typeof logout === "function") logout();
+                return;
+            }
+
+            const container = document.getElementById("fileContainer");
+            container.innerHTML = `<div class="col-12 text-center text-secondary py-4">Đang tải danh sách link chia sẻ...</div>`;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/shared-links`, {
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+
+                if (response.status === 401) {
+                    if (typeof logout === "function") logout();
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error(`Load shared links failed: ${response.status}`);
+                }
+
+                const payload = await response.json();
+                const items = Array.isArray(payload?.items) ? payload.items : [];
+                sharedLinks = items.map(item => ({
+                    id: item.id,
+                    fileName: item.file_name,
+                    fileSize: item.file_size,
+                    shareLink: item.public_url,
+                    expiresAt: item.expires_at,
+                    createdAt: item.created_at,
+                    isExpired: item.is_expired,
+                }));
+
+                renderSharedLinks();
+            } catch (error) {
+                console.error("Load shared links error:", error);
+                container.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">Không tải được danh sách link chia sẻ.</div></div>`;
+            }
+        }
 
         // ===== RENDER =====
         function renderFiles(list) {
@@ -163,6 +257,159 @@
             </div>`;
                 }
             });
+        }
+
+        function renderSharedLinks() {
+            const container = document.getElementById("fileContainer");
+            if (!sharedLinks.length) {
+                container.innerHTML = `<div class="col-12"><div class="alert alert-light border mb-0">Bạn chưa tạo link chia sẻ nào.</div></div>`;
+                return;
+            }
+
+            container.innerHTML = `
+            <div class="col-12">
+                <div class="table-responsive bg-white rounded shadow-sm">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>File</th>
+                                <th>Link chia sẻ</th>
+                                <th>Ngày hết hạn</th>
+                                <th>Ngày tạo</th>
+                                <th class="text-end">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${sharedLinks.map(link => `
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold">${link.fileName}</div>
+                                    <div class="small text-secondary">${formatSize(link.fileSize)}</div>
+                                </td>
+                                <td><a href="${link.shareLink}" target="_blank" rel="noreferrer">${link.shareLink}</a></td>
+                                <td>${link.expiresAt ? formatDateTime(link.expiresAt) : "Không hết hạn"}${link.isExpired ? " <span class='badge text-bg-danger ms-1'>Hết hạn</span>" : ""}</td>
+                                <td>${formatDateTime(link.createdAt)}</td>
+                                <td class="text-end">
+                                    <button class="btn btn-outline-danger btn-sm" onclick="revokeLink(${link.id})">Thu hồi</button>
+                                </td>
+                            </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+        }
+
+        function getTrashIcon(file) {
+            if (file.type === "folder") return "bi-folder-fill text-warning";
+            if (file.type === "image") return "bi-image text-success";
+            return "bi-file-earmark text-secondary";
+        }
+
+        function renderTrashFiles() {
+            const container = document.getElementById("fileContainer");
+            container.innerHTML = trashFiles.map(file => `
+            <div class="col-12 col-lg-6 col-xxl-4">
+                <div class="card p-3 h-100 shadow-sm border-0">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="d-flex align-items-center gap-3">
+                            <i class="bi ${getTrashIcon(file)} fs-2"></i>
+                            <div>
+                                <div class="fw-semibold">${file.name}</div>
+                                <div class="small text-secondary">Đã xóa lúc ${file.deletedAt}</div>
+                            </div>
+                        </div>
+                        <span class="badge text-bg-light text-secondary">${file.size}</span>
+                    </div>
+                    <div class="d-flex gap-2 mt-3">
+                        <button class="btn btn-primary flex-fill" onclick="restoreFile(${file.id})">Khôi phục</button>
+                        <button class="btn btn-outline-danger flex-fill" onclick="permanentDelete(${file.id})">Xóa vĩnh viễn</button>
+                    </div>
+                </div>
+            </div>`).join("");
+        }
+
+        function renderActiveSection() {
+            if (currentSection === "shared") {
+                loadSharedLinks();
+                return;
+            }
+            if (currentSection === "trash") {
+                renderTrashFiles();
+                return;
+            }
+            loadFilesByPath();
+        }
+
+        function setActiveNav() {
+            const filesNav = document.getElementById("nav-files");
+            const sharedNav = document.getElementById("nav-shared");
+            const trashNav = document.getElementById("nav-trash");
+            const filesBtn = document.getElementById("filesSectionBtn");
+            const sharedBtn = document.getElementById("sharedSectionBtn");
+            const trashBtn = document.getElementById("trashSectionBtn");
+            const title = document.getElementById("sectionTitle");
+
+            if (filesNav) filesNav.classList.toggle("active", currentSection === "files");
+            if (sharedNav) sharedNav.classList.toggle("active", currentSection === "shared");
+            if (trashNav) trashNav.classList.toggle("active", currentSection === "trash");
+            filesBtn.classList.toggle("active", currentSection === "files");
+            sharedBtn.classList.toggle("active", currentSection === "shared");
+            trashBtn.classList.toggle("active", currentSection === "trash");
+
+            if (currentSection === "files") title.textContent = "Tệp của tôi";
+            if (currentSection === "shared") title.textContent = "Đã chia sẻ";
+            if (currentSection === "trash") title.textContent = "Thùng rác";
+        }
+
+        function switchSection(section) {
+            currentSection = section;
+            setActiveNav();
+            renderActiveSection();
+        }
+
+        async function revokeLink(id) {
+            const token = localStorage.getItem("mycloud_token");
+            if (!token) {
+                if (typeof logout === "function") logout();
+                return;
+            }
+
+            if (!confirm("Bạn có chắc muốn thu hồi link chia sẻ này?")) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/shared-links/${id}`, {
+                    method: "DELETE",
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+
+                if (response.status === 401) {
+                    if (typeof logout === "function") logout();
+                    return;
+                }
+
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err?.detail || `Thu hồi thất bại (${response.status})`);
+                }
+
+                await loadSharedLinks();
+            } catch (error) {
+                console.error("Revoke shared link error:", error);
+                alert(error.message || "Thu hồi link thất bại");
+            }
+        }
+
+        function restoreFile(id) {
+            trashFiles = trashFiles.filter(file => file.id !== id);
+            renderTrashFiles();
+        }
+
+        function permanentDelete(id) {
+            trashFiles = trashFiles.filter(file => file.id !== id);
+            renderTrashFiles();
         }
 
         function highlight(text, keyword) {
@@ -280,6 +527,7 @@
         let searchTimeout;
 
         function searchFile() {
+            if (currentSection !== "files") return;
             clearTimeout(searchTimeout);
 
             searchTimeout = setTimeout(() => {
@@ -337,16 +585,18 @@
         // ===== EVENT BUTTON =====
         document.getElementById("gridBtn").onclick = () => {
             viewMode = "grid";
-            loadFilesByPath();
+            renderActiveSection();
         };
 
         document.getElementById("listBtn").onclick = () => {
             viewMode = "list";
-            loadFilesByPath();
+            renderActiveSection();
         };
 
         // ===== INIT =====
-        loadFilesByPath();
+        const sectionFromQuery = new URLSearchParams(globalThis.location.search).get("section");
+        const allowedSections = ["files", "shared", "trash"];
+        switchSection(allowedSections.includes(sectionFromQuery) ? sectionFromQuery : "files");
 
     </script>
 

@@ -1,5 +1,5 @@
-from pydantic import BaseModel
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, EmailStr, ConfigDict
 class UserCreate(BaseModel):
@@ -34,3 +34,31 @@ class Token(BaseModel):
 class ChangePasswordRequest(BaseModel):
     old_password: str
     new_password: str
+
+
+class SharedLinkCreateRequest(BaseModel):
+    file_id: int
+    expiration_days: Optional[int] = 7
+
+
+class SharedLinkResponse(BaseModel):
+    id: int
+    file_id: int
+    file_name: str
+    file_size: int
+    expires_at: Optional[datetime] = None
+    created_at: datetime
+    is_expired: bool
+    public_url: str
+
+
+class SharedLinkListResponse(BaseModel):
+    items: list[SharedLinkResponse]
+
+
+class PublicDownloadInfoResponse(BaseModel):
+    file_name: str
+    file_size: int
+    content_type: str
+    expires_at: Optional[datetime] = None
+    download_url: str

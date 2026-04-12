@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.routes import auth
+from app.routes import auth, shared
 from .database import engine
 from . import models
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(auth.router)
+app.include_router(shared.router)
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
