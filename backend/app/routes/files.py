@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File as FastAPIFile, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File as FastAPIFile, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -189,7 +189,11 @@ def permanent_delete(
 
 
 @router.get("/public-content/{file_id}")
-def public_content(file_id: int, db: Annotated[Session, Depends(get_db)]):
+def public_content(
+    file_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    download: Annotated[bool, Query(description="True: tai xuong, False: xem truc tiep")] = False,
+):
     file_obj = db.query(models.File).filter(models.File.id == file_id, models.File.is_deleted.is_(False)).first()
     if not file_obj:
         raise HTTPException(status_code=404, detail="Khong tim thay file")
@@ -198,4 +202,10 @@ def public_content(file_id: int, db: Annotated[Session, Depends(get_db)]):
     if not saved_path or not saved_path.exists():
         raise HTTPException(status_code=404, detail="Noi dung file khong ton tai")
 
-    return FileResponse(path=saved_path, media_type=file_obj.content_type, filename=file_obj.name)
+    disposition_type = "attachment" if download else "inline"
+    return FileResponse(
+        path=saved_path,
+        media_type=file_obj.content_type,
+        filename=file_obj.name,
+        content_disposition_type=disposition_type,
+    )

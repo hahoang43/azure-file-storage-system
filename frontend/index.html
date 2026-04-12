@@ -56,6 +56,32 @@
         </div>
     </div>
     <input id="realUploadInput" type="file" multiple class="d-none">
+
+    <div class="modal fade" id="shareExpiryModal" tabindex="-1" aria-labelledby="shareExpiryModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="shareExpiryModalLabel">Tạo link chia sẻ</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" value="" id="shareNoExpiry">
+                        <label class="form-check-label" for="shareNoExpiry">
+                            Không đặt thời hạn
+                        </label>
+                    </div>
+                    <label for="shareExpiryAt" class="form-label">Hạn share (ngày/giờ)</label>
+                    <input type="datetime-local" id="shareExpiryAt" class="form-control">
+                    <div class="form-text">Bạn có thể bấm vào ô để chọn theo lịch và giờ.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Huỷ</button>
+                    <button type="button" class="btn btn-primary" id="confirmShareBtn">Tạo link</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <script>
         const API_BASE_URL = "http://127.0.0.1:8000";
         // Tải component sidebar và topbar vào index.html, sau đó mới chạy các script phụ thuộc DOM
@@ -100,6 +126,8 @@
         let sharedLinks = [];
         let currentSection = "files";
         let viewMode = "grid";
+        let pendingShareFileId = null;
+        let shareExpiryModal = null;
 
         function getToken() {
             return localStorage.getItem("mycloud_token");
@@ -385,14 +413,72 @@
             }
         }
 
-        async function shareItem(id) {
-            try {
-                const expirationDays = prompt("Link hết hạn sau bao nhiêu ngày?", "7");
-                if (expirationDays === null) return;
+        function getDefaultExpiryLocalValue() {
+            const d = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            const pad = (n) => String(n).padStart(2, "0");
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
 
-                const payload = { file_id: id };
-                if (expirationDays.trim() !== "") {
-                    payload.expiration_days = Number(expirationDays);
+        function getNowLocalValue() {
+            const d = new Date();
+            const pad = (n) => String(n).padStart(2, "0");
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+
+        function toMinuteKey(value) {
+            if (!value) return "";
+            // Normalize both "YYYY-MM-DDTHH:mm" and ISO timestamps to minute precision.
+            return String(value).replace(" ", "T").slice(0, 16);
+        }
+
+        function openShareModal(id) {
+            pendingShareFileId = id;
+            const noExpiryInput = document.getElementById("shareNoExpiry");
+            const expiryInput = document.getElementById("shareExpiryAt");
+            noExpiryInput.checked = false;
+            expiryInput.disabled = false;
+            expiryInput.min = getNowLocalValue();
+            expiryInput.value = getDefaultExpiryLocalValue();
+            shareExpiryModal.show();
+        }
+
+        async function shareItem(id) {
+            openShareModal(id);
+        }
+
+        async function submitShareFromModal() {
+            if (!pendingShareFileId) return;
+            try {
+                const noExpiryInput = document.getElementById("shareNoExpiry");
+                const expiryInput = document.getElementById("shareExpiryAt");
+
+                const payload = { file_id: pendingShareFileId };
+                let selectedExpiry = null;
+                if (!noExpiryInput.checked) {
+                    if (!expiryInput.value) {
+                        alert("Vui lòng chọn ngày giờ hết hạn hoặc tick 'Không đặt thời hạn'.");
+                        return;
+                    }
+
+                    selectedExpiry = new Date(expiryInput.value);
+                    if (Number.isNaN(selectedExpiry.getTime())) {
+                        alert("Ngày giờ hết hạn không hợp lệ.");
+                        return;
+                    }
+
+                    const now = new Date();
+                    if (selectedExpiry <= now) {
+                        alert("Ngày giờ hết hạn phải lớn hơn thời điểm hiện tại.");
+                        return;
+                    }
+
+                    // Primary field for new backend logic.
+                    payload.expiration_at = expiryInput.value;
+
+                    // Backward-compatible fallback for stale backend processes.
+                    const diffMinutes = Math.max(1, Math.ceil((selectedExpiry.getTime() - now.getTime()) / 60000));
+                    payload.expiration_value = diffMinutes;
+                    payload.expiration_unit = "minute";
                 }
 
                 const res = await fetch(`${API_BASE_URL}/shared-links`, {
@@ -417,7 +503,18 @@
                     await navigator.clipboard.writeText(shareLink);
                 } catch { }
 
-                alert(`Đã tạo link share.\n${shareLink}`);
+                const expiryText = data.expires_at ? formatDateTime(data.expires_at) : "Không đặt hạn";
+                alert(`Đã tạo link share.\nHết hạn: ${expiryText}\n${shareLink}`);
+
+                if (selectedExpiry && data.expires_at) {
+                    const selectedKey = toMinuteKey(expiryInput.value);
+                    const serverKey = toMinuteKey(data.expires_at);
+                    if (selectedKey && serverKey && selectedKey !== serverKey) {
+                        alert(`Cảnh báo: thời gian hết hạn server trả về lệch so với thời gian bạn chọn.\nBạn chọn: ${selectedKey}\nServer trả về: ${serverKey}`);
+                    }
+                }
+
+                shareExpiryModal.hide();
                 if (currentSection === "shared") {
                     await loadSharedLinks();
                 }
@@ -533,9 +630,15 @@
         };
 
         document.getElementById("realUploadInput").addEventListener("change", uploadSelectedFiles);
+        document.getElementById("shareNoExpiry").addEventListener("change", (event) => {
+            const expiryInput = document.getElementById("shareExpiryAt");
+            expiryInput.disabled = event.target.checked;
+        });
+        document.getElementById("confirmShareBtn").addEventListener("click", submitShareFromModal);
 
         document.addEventListener("DOMContentLoaded", async () => {
             if (!ensureAuth()) return;
+            shareExpiryModal = new bootstrap.Modal(document.getElementById("shareExpiryModal"));
             await loadQuota();
             const sectionFromQuery = new URLSearchParams(globalThis.location.search).get("section");
             const allowedSections = ["files", "shared", "trash"];

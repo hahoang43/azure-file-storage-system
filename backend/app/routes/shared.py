@@ -1,7 +1,9 @@
 import os
+import calendar
 from datetime import datetime, timedelta
 from secrets import token_urlsafe
 from typing import Annotated
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -37,6 +39,66 @@ def _to_shared_link_response(shared_link: models.SharedLink) -> schemas.SharedLi
     )
 
 
+def _set_query_param(url: str, key: str, value: str) -> str:
+    parsed = urlsplit(url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query[key] = value
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
+
+
+def _add_months(dt: datetime, months: int) -> datetime:
+    target_month_index = dt.month - 1 + months
+    year = dt.year + target_month_index // 12
+    month = target_month_index % 12 + 1
+    day = min(dt.day, calendar.monthrange(year, month)[1])
+    return dt.replace(year=year, month=month, day=day)
+
+
+def _compute_legacy_expiration(payload: schemas.SharedLinkCreateRequest, now: datetime) -> datetime | None:
+    if payload.expiration_days is None:
+        return None
+    if payload.expiration_days <= 0:
+        raise HTTPException(status_code=400, detail="expiration_days phai lon hon 0")
+    return now + timedelta(days=payload.expiration_days)
+
+
+def _compute_expiration(payload: schemas.SharedLinkCreateRequest) -> datetime | None:
+    now = datetime.now()
+
+    if payload.expiration_at is not None:
+        expiration_at = payload.expiration_at
+        if expiration_at.tzinfo is not None:
+            # Convert aware datetime to local naive so DB and UI show the same wall-clock time.
+            expiration_at = expiration_at.astimezone().replace(tzinfo=None)
+
+        if expiration_at <= now:
+            raise HTTPException(status_code=400, detail="expiration_at phai lon hon thoi diem hien tai")
+        return expiration_at
+
+    if payload.expiration_value is None and payload.expiration_unit is None:
+        return _compute_legacy_expiration(payload, now)
+
+    if payload.expiration_value is None or payload.expiration_unit is None:
+        raise HTTPException(status_code=400, detail="expiration_value va expiration_unit phai di cung nhau")
+
+    if payload.expiration_value <= 0:
+        raise HTTPException(status_code=400, detail="expiration_value phai lon hon 0")
+
+    calculators = {
+        "minute": lambda base, value: base + timedelta(minutes=value),
+        "hour": lambda base, value: base + timedelta(hours=value),
+        "day": lambda base, value: base + timedelta(days=value),
+        "month": lambda base, value: _add_months(base, value),
+        "year": lambda base, value: _add_months(base, value * 12),
+    }
+
+    calculator = calculators.get(payload.expiration_unit)
+    if not calculator:
+        raise HTTPException(status_code=400, detail="expiration_unit khong hop le")
+
+    return calculator(now, payload.expiration_value)
+
+
 @router.post(
     "",
     response_model=schemas.SharedLinkResponse,
@@ -59,12 +121,7 @@ def create_shared_link(
     if file_obj.is_deleted:
         raise HTTPException(status_code=400, detail="File da bi xoa vao thung rac")
 
-    if payload.expiration_days is not None and payload.expiration_days <= 0:
-        raise HTTPException(status_code=400, detail="expiration_days phai lon hon 0")
-
-    expires_at = None
-    if payload.expiration_days:
-        expires_at = datetime.now() + timedelta(days=payload.expiration_days)
+    expires_at = _compute_expiration(payload)
 
     token = token_urlsafe(24)
     public_url = _build_public_link(token)
@@ -139,12 +196,15 @@ def get_public_download_info(token: str, db: Annotated[Session, Depends(get_db)]
         raise HTTPException(status_code=404, detail="File khong con kha dung")
 
     # Keep public URL short-lived to reduce exposure risk.
-    download_url = utils.build_readonly_blob_sas_url(file_obj.blob_url)
+    base_url = utils.build_readonly_blob_sas_url(file_obj.blob_url)
+    preview_url = _set_query_param(base_url, "download", "0")
+    download_url = _set_query_param(base_url, "download", "1")
 
     return schemas.PublicDownloadInfoResponse(
         file_name=file_obj.name,
         file_size=file_obj.size,
         content_type=file_obj.content_type,
         expires_at=shared_link.expires_at,
+        preview_url=preview_url,
         download_url=download_url,
     )

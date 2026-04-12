@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, EmailStr, ConfigDict
 
@@ -43,7 +43,10 @@ class ChangePasswordRequest(BaseModel):
 
 class SharedLinkCreateRequest(BaseModel):
     file_id: int
-    expiration_days: Optional[int] = 7
+    expiration_days: Optional[int] = None
+    expiration_value: Optional[int] = None
+    expiration_unit: Optional[Literal["minute", "hour", "day", "month", "year"]] = None
+    expiration_at: Optional[datetime] = None
 
 
 class SharedLinkResponse(BaseModel):
@@ -66,6 +69,7 @@ class PublicDownloadInfoResponse(BaseModel):
     file_size: int
     content_type: str
     expires_at: Optional[datetime] = None
+    preview_url: str
     download_url: str
 
 
