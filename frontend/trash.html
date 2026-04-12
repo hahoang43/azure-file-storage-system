@@ -1,103 +1,11 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Trash - My Drive</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-<style>
-body { background: #eef3fb; font-family: "Segoe UI", sans-serif; }
-.sidebar { min-height: 100vh; background: linear-gradient(180deg, #0b5ed7, #0f7bff); color: #fff; }
-.sidebar a { color: rgba(255,255,255,0.92); text-decoration: none; }
-.sidebar a:hover, .sidebar a.active { background: rgba(255,255,255,0.16); color: #fff; }
-.topbar { background: rgba(255,255,255,0.88); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(15, 23, 42, 0.08); }
-.trash-card { border: 0; border-radius: 18px; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08); }
-</style>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="0; url=index.html?section=trash">
+    <title>Redirecting...</title>
 </head>
 <body>
-<div class="container-fluid">
-  <div class="row g-0">
-    <aside class="col-12 col-lg-2 sidebar p-3 p-lg-4">
-      <div class="d-flex align-items-center gap-2 mb-4">
-        <div class="bg-white bg-opacity-20 rounded-3 p-2"><i class="bi bi-trash3 fs-4"></i></div>
-        <div>
-          <div class="fw-bold fs-5">Trash</div>
-          <small class="text-white-50">Deleted files</small>
-        </div>
-      </div>
-      <nav class="d-grid gap-2">
-        <a class="rounded-3 px-3 py-2" href="index.html"><i class="bi bi-grid-1x2 me-2"></i>My Files</a>
-        <a class="active rounded-3 px-3 py-2" href="trash.html"><i class="bi bi-trash3 me-2"></i>Trash</a>
-        <a class="rounded-3 px-3 py-2" href="shared.html"><i class="bi bi-share me-2"></i>Shared Links</a>
-      </nav>
-    </aside>
-
-    <main class="col-12 col-lg-10">
-      <div class="topbar px-3 px-lg-4 py-3 d-flex justify-content-between align-items-center">
-        <div>
-          <h4 class="mb-0">Thùng rác</h4>
-          <small class="text-secondary">Các file đã xóa tạm thời, có thể khôi phục hoặc xóa vĩnh viễn.</small>
-        </div>
-        <a class="btn btn-outline-primary" href="index.html"><i class="bi bi-arrow-left me-1"></i>Back</a>
-      </div>
-
-      <div class="p-3 p-lg-4">
-        <div class="row g-3" id="trashContainer"></div>
-      </div>
-    </main>
-  </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-let trashFiles = [
-  { id: 101, name: "Old_Report.pdf", type: "file", deletedAt: "2026-04-04 14:20", size: "6.2 MB" },
-  { id: 102, name: "Archive", type: "folder", deletedAt: "2026-04-04 16:05", size: "-" },
-  { id: 103, name: "Holiday.jpg", type: "image", deletedAt: "2026-04-05 08:40", size: "3.1 MB" }
-];
-
-function getIcon(file) {
-  if (file.type === "folder") return "bi-folder-fill text-warning";
-  if (file.type === "image") return "bi-image text-success";
-  return "bi-file-earmark text-secondary";
-}
-
-function renderTrash() {
-  const container = document.getElementById("trashContainer");
-  container.innerHTML = trashFiles.map(file => `
-    <div class="col-12 col-lg-6 col-xxl-4">
-      <div class="card trash-card p-3 h-100">
-        <div class="d-flex justify-content-between align-items-start">
-          <div class="d-flex align-items-center gap-3">
-            <i class="bi ${getIcon(file)} fs-1"></i>
-            <div>
-              <div class="fw-semibold">${file.name}</div>
-              <div class="small text-secondary">Đã xóa lúc ${file.deletedAt}</div>
-            </div>
-          </div>
-          <span class="badge text-bg-light text-secondary">${file.size}</span>
-        </div>
-        <div class="d-flex gap-2 mt-3">
-          <button class="btn btn-primary flex-fill" onclick="restoreFile(${file.id})"><i class="bi bi-arrow-counterclockwise me-1"></i>Khôi phục</button>
-          <button class="btn btn-outline-danger flex-fill" onclick="permanentDelete(${file.id})"><i class="bi bi-trash3 me-1"></i>Xóa vĩnh viễn</button>
-        </div>
-      </div>
-    </div>
-  `).join("");
-}
-
-function restoreFile(id) {
-  trashFiles = trashFiles.filter(file => file.id !== id);
-  renderTrash();
-}
-
-function permanentDelete(id) {
-  trashFiles = trashFiles.filter(file => file.id !== id);
-  renderTrash();
-}
-
-renderTrash();
-</script>
+    <script>window.location.replace("index.html?section=trash");</script>
 </body>
 </html>

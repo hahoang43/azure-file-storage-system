@@ -29,7 +29,14 @@ document.getElementById('registerForm').addEventListener('submit', async functio
             })
         });
 
-        const data = await response.json();
+        let data = {};
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+            data = await response.json();
+        } else {
+            const text = await response.text();
+            data = { detail: text || "Đăng ký thất bại!" };
+        }
 
         if (response.ok) {
             alert("Đăng ký thành công! Vui lòng đăng nhập.");
@@ -68,7 +75,14 @@ document.getElementById('loginForm').addEventListener('submit', async function (
             })
         });
 
-        const data = await response.json();
+        let data = {};
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+            data = await response.json();
+        } else {
+            const text = await response.text();
+            data = { detail: text || "Đăng nhập thất bại!" };
+        }
 
         if (response.ok) {
             // LƯU THẺ THÔNG HÀNH (TOKEN) VÀO BỘ NHỚ TRÌNH DUYỆT

@@ -2,10 +2,14 @@ from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, ConfigDict
+
+
 class UserCreate(BaseModel):
     username: str
     email: EmailStr
     password: str
+
+
 class UserResponse(BaseModel):
     id: int
     username: str
@@ -15,7 +19,8 @@ class UserResponse(BaseModel):
     updated_at: datetime
     used_storage: int
     max_storage: int
-model_config = ConfigDict(from_attributes=True)
+
+    model_config = ConfigDict(from_attributes=True)
 
 # ==========================================
 # CÁC KHUÔN MỚI DÀNH CHO TÍNH NĂNG ĐĂNG NHẬP
@@ -62,3 +67,24 @@ class PublicDownloadInfoResponse(BaseModel):
     content_type: str
     expires_at: Optional[datetime] = None
     download_url: str
+
+
+class FileItemResponse(BaseModel):
+    id: int
+    name: str
+    size: int
+    content_type: str
+    blob_url: str
+    is_deleted: bool
+    created_at: datetime
+    updated_at: datetime
+    type: str = "file"
+
+
+class FileListResponse(BaseModel):
+    items: list[FileItemResponse]
+
+
+class FileActionResponse(BaseModel):
+    success: bool
+    message: str

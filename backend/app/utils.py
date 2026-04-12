@@ -12,8 +12,9 @@ except ImportError:
     generate_blob_sas = None
 
 # 1. CÔNG CỤ BĂM MẬT KHẨU
-# bcrypt_sha256 pre-hashes input before bcrypt, avoiding bcrypt's 72-byte limit.
-pwd_context = CryptContext(schemes=["bcrypt_sha256"], deprecated="auto")
+# Dùng pbkdf2_sha256 để tránh lỗi tương thích passlib+bcrypt trên một số môi trường.
+# Giữ bcrypt_sha256 để vẫn verify được hash cũ (nếu có).
+pwd_context = CryptContext(schemes=["pbkdf2_sha256", "bcrypt_sha256"], deprecated="auto")
 
 def get_password_hash(password: str):
     return pwd_context.hash(password)
