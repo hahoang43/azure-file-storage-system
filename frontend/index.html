@@ -1,395 +1,784 @@
 <!DOCTYPE html>
-
 <html lang="vi">
+
 <head>
-<meta charset="UTF-8">
-<title>Cloud Storage UI</title>
 
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyCloud - Quản lý tệp tin</title>
 
-<style>
-body { background:#eef2f7; font-family:'Segoe UI'; }
-mark, span {
-    background: #ffe066;
-    padding: 2px 4px;
-    border-radius: 5px;
-}
-/* SIDEBAR */
-#sidebar {
-    height:100vh;
-    background: linear-gradient(180deg,#0d6efd,#3a8bfd);
-    color:white;
-}
-#sidebar a {
-    color:white;
-    padding:12px;
-    display:block;
-    border-radius:8px;
-}
-#sidebar a:hover { background:rgba(255,255,255,0.2); }
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
 
-/* TOPBAR */
-.topbar { background:white; border-bottom:1px solid #ddd; }
-
-/* SEARCH */
-#searchInput { border-radius:30px; }
-
-/* FILE CARD */
-.file-card {
-    border-radius:15px;
-    box-shadow:0 5px 15px rgba(0,0,0,0.1);
-    transition:0.25s;
-}
-.file-card:hover {
-    transform:translateY(-6px);
-    box-shadow:0 12px 25px rgba(0,0,0,0.2);
-}
-</style>
+    <link rel="stylesheet" href="components/sidebar.css">
+    <link rel="stylesheet" href="components/topbar.css">
 
 </head>
-
 <body>
+    
 
-<div class="container-fluid">
-<div class="row">
-
-<!-- SIDEBAR -->
-
-<div class="col-2 p-3" id="sidebar">
-    <h4 class="mb-4">☁ My Drive</h4>
-
-<button class="btn btn-light w-100 mb-2" onclick="openCreateModal()">
-    <i class="bi bi-folder-plus"></i> New Folder
-</button>
-
-<a href="#"><i class="bi bi-folder"></i> My Files</a>
-<a href="#"><i class="bi bi-share"></i> Shared</a>
-
-</div>
-
-<!-- MAIN -->
-
-<div class="col-10">
-
-<!-- TOPBAR -->
-<div class="d-flex justify-content-between p-3 topbar">
-    <input id="searchInput" class="form-control w-50"
-           placeholder="🔍 Search..." oninput="searchFile()">
-    <span>👤 User</span>
-</div>
-
-<!-- BREADCRUMB -->
-<div class="p-3">
-    <ol class="breadcrumb" id="breadcrumb"></ol>
-</div>
-<div class="px-3 mb-2 d-flex gap-2">
-    <button id="gridBtn" class="btn btn-outline-primary btn-sm">Grid</button>
-    <button id="listBtn" class="btn btn-outline-secondary btn-sm">List</button>
-</div>
-
-<!-- FILE LIST -->
-<div class="container-fluid">
-    <div class="row" id="fileContainer"></div>
-</div>
-
-</div>
-</div>
-</div>
-
-
-<!-- MODAL CREATE -->
-
-<div class="modal fade" id="createModal">
-<div class="modal-dialog">
-<div class="modal-content p-3">
-    <h5>Create Folder</h5>
-    <input id="folderName" class="form-control mb-2">
-    <button class="btn btn-primary w-100" onclick="createFolder()">Create</button>
-</div>
-</div>
-</div>
-
-<!-- MODAL PREVIEW -->
-
-<div class="modal fade" id="previewModal">
-<div class="modal-dialog modal-lg">
-<div class="modal-content p-3 text-center">
-    <h5>Preview</h5>
-    <div id="previewContent"></div>
-</div>
-</div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-<script>
-
-// ===== DATA =====
-let files = [
- {id:1,name:"Documents",type:"folder",parent:null},
- {id:2,name:"Image.png",type:"image",parent:null},
- {id:3,name:"File.pdf",type:"file",parent:null},
- {id:4,name:"Python",type:"folder",parent:1}
-];
-
-let currentFolder = null;
-let currentPath = ["Home"];
-
-// ===== RENDER =====
-function renderFiles(list){
-    const container = document.getElementById("fileContainer");
-    container.innerHTML = "";
-
-    list.forEach(f => {
-
-        let icon = "bi-file-earmark";
-        if(f.type === "folder") icon = "bi-folder-fill text-warning";
-        if(f.type === "image") icon = "bi-image text-success";
-
-        if(viewMode === "grid"){
-            container.innerHTML += `
-            <div class="col-md-3 mb-4">
-                <div class="card file-card p-3 text-center"
-                     onclick="openItem(${f.id})">
-
-                    <i class="bi ${icon} fs-1"></i>
-                    <h6>${f.name}</h6>
-
-                    <div class="d-flex mt-2">
-                        <button class="btn btn-outline-secondary btn-sm w-50"
-                            onclick="event.stopPropagation(); renameItem(${f.id})">
-                            Rename
-                        </button>
-
-                        <button class="btn btn-outline-danger btn-sm w-50 ms-1"
-                            onclick="event.stopPropagation(); deleteItem(${f.id})">
-                            Delete
-                        </button>
+    <div class="container-fluid p-0">
+        <div class="row g-0">
+            <div id="sidebar-container" class="col-auto p-0"></div>
+            <div class="main-content col px-0" style="min-height:100vh;">
+                <div id="topbar-container"></div>
+                <div class="container-fluid px-4 py-3">
+                    <div class="row align-items-center mb-3">
+                        <div class="col-md-8 col-12 mb-2 mb-md-0 d-flex align-items-center">
+                            <nav aria-label="breadcrumb" class="me-3">
+                                <ol class="breadcrumb mb-0" id="breadcrumb" style="font-weight: 500;"></ol>
+                            </nav>
+                            <div class="flex-grow-1" id="sectionTitle"></div>
+                        </div>
+                        <div class="col-md-4 col-12 d-flex justify-content-end align-items-center gap-2">
+                            <div class="btn-group shadow-sm bg-white rounded border" id="sectionSwitcher">
+                                <button id="filesSectionBtn" class="btn btn-light btn-sm active border-0 px-3" onclick="switchSection('files')">
+                                    <i class="bi bi-folder2-open"></i>
+                                </button>
+                                <button id="sharedSectionBtn" class="btn btn-light btn-sm border-0 px-3" onclick="switchSection('shared')">
+                                    <i class="bi bi-share"></i>
+                                </button>
+                                <button id="trashSectionBtn" class="btn btn-light btn-sm border-0 px-3" onclick="switchSection('trash')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                            <div class="btn-group shadow-sm bg-white rounded border">
+                                <button id="gridBtn" class="btn btn-light btn-sm active border-0 px-3"><i
+                                        class="bi bi-grid-3x3-gap-fill"></i></button>
+                                <button id="listBtn" class="btn btn-light btn-sm border-0 px-3"><i
+                                        class="bi bi-list"></i></button>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>`;
-        }
-
-        else {
-            container.innerHTML += `
-            <div class="col-12 mb-2">
-                <div class="d-flex justify-content-between align-items-center p-2 bg-white rounded shadow-sm"
-                     onclick="openItem(${f.id})">
-
-                    <div>
-                        <i class="bi ${icon} me-2"></i>
-                        ${f.name}
-                    </div>
-
-                    <div>
-                        <button class="btn btn-sm btn-outline-secondary"
-                            onclick="event.stopPropagation(); renameItem(${f.id})">
-                            Rename
-                        </button>
-
-                        <button class="btn btn-sm btn-outline-danger ms-1"
-                            onclick="event.stopPropagation(); deleteItem(${f.id})">
-                            Delete
-                        </button>
-                    </div>
-
-                </div>
-            </div>`;
-        }
-
-    });
-}
-
-function highlight(text, keyword){
-    const regex = new RegExp(`(${keyword})`, "gi");
-    return text.replace(regex, `<span style="background:yellow">$1</span>`);
-}
-
-function renderFilesHighlight(list, keyword){
-    const container = document.getElementById("fileContainer");
-    container.innerHTML = "";
-
-    list.forEach(f => {
-
-        let icon = "bi-file-earmark";
-        if(f.type === "folder") icon = "bi-folder-fill text-warning";
-        if(f.type === "image") icon = "bi-image text-success";
-
-        const nameHighlighted = highlight(f.name, keyword);
-
-        container.innerHTML += `
-        <div class="col-md-3 mb-4">
-            <div class="card file-card p-3 text-center"
-                 onclick="openItem(${f.id})">
-
-                <i class="bi ${icon} fs-1"></i>
-                <h6>${nameHighlighted}</h6>
-
-                <div class="d-flex mt-2">
-                    <button class="btn btn-outline-secondary btn-sm w-50"
-                        onclick="event.stopPropagation(); renameItem(${f.id})">
-                        Rename
-                    </button>
-
-                    <button class="btn btn-outline-danger btn-sm w-50 ms-1"
-                        onclick="event.stopPropagation(); deleteItem(${f.id})">
-                        Delete
-                    </button>
+                    <div id="fileContainer" class="row g-3"></div>
                 </div>
             </div>
-        </div>`;
-    });
-}
+        </div>
+    </div>
+    <input id="realUploadInput" type="file" multiple class="d-none">
 
-// ===== LOAD =====
-function loadFilesByPath(){
-    const list = files.filter(f=>f.parent===currentFolder);
-    renderFiles(list);
-    renderBreadcrumb();
-}
+    <div class="modal fade" id="shareExpiryModal" tabindex="-1" aria-labelledby="shareExpiryModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="shareExpiryModalLabel">Tạo link chia sẻ</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" value="" id="shareNoExpiry">
+                        <label class="form-check-label" for="shareNoExpiry">
+                            Không đặt thời hạn
+                        </label>
+                    </div>
+                    <label for="shareExpiryAt" class="form-label">Hạn share (ngày/giờ)</label>
+                    <input type="datetime-local" id="shareExpiryAt" class="form-control">
+                    <div class="form-text">Bạn có thể bấm vào ô để chọn theo lịch và giờ.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Huỷ</button>
+                    <button type="button" class="btn btn-primary" id="confirmShareBtn">Tạo link</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const API_BASE_URL = "http://127.0.0.1:8000";
+        // Tải component sidebar và topbar vào index.html, sau đó mới chạy các script phụ thuộc DOM
+        globalThis.addEventListener('DOMContentLoaded', function () {
+            Promise.all([
+                fetch('components/sidebar.html').then(r => r.text()).then(html => {
+                    document.getElementById('sidebar-container').innerHTML = html;
+                }),
+                fetch('components/topbar.html').then(r => r.text()).then(html => {
+                    document.getElementById('topbar-container').innerHTML = html;
+                })
+            ]).then(() => {
+                // Sau khi đã render xong sidebar/topbar, mới chạy các script phụ thuộc DOM
+                if (typeof setActiveNav === 'function') setActiveNav();
+                if (typeof loadQuota === 'function') loadQuota();
 
-// ===== BREADCRUMB =====
-function renderBreadcrumb(){
-    const bc=document.getElementById("breadcrumb");
-    bc.innerHTML="";
+                // Hiển thị tên người dùng từ localStorage (username)
+                let username = localStorage.getItem("mycloud_username");
+                if (!username) {
+                    // Nếu không có, thử lấy từ token (nếu token là JWT chuẩn)
+                    const token = localStorage.getItem("mycloud_token");
+                    if (token) {
+                        try {
+                            const payload = JSON.parse(atob(token.split('.')[1]));
+                            username = payload.sub || payload.username || payload.name;
+                        } catch { }
+                    }
+                }
+                if (username && document.getElementById("userDisplay")) {
+                    document.getElementById("userDisplay").textContent = username;
+                }
+            });
+        });
+    </script>
 
-    currentPath.forEach((p,i)=>{
-        bc.innerHTML+=`
-        <li class="breadcrumb-item ${i===currentPath.length-1?'active':''}"
-            onclick="goToPath(${i})" style="cursor:pointer">
-            ${p}
-        </li>`;
-    });
-}
 
-function goToPath(index){
-    currentPath=currentPath.slice(0,index+1);
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-    if(index===0) currentFolder=null;
-    else currentFolder=files.find(f=>f.name===currentPath[index]).id;
+    <script>
+        let files = [];
+        let trashFiles = [];
+        let sharedLinks = [];
+        let currentSection = "files";
+        let viewMode = "grid";
+        let currentFolderId = null;
+        let currentPath = [{ id: null, name: "Trang chủ" }];
+        let pendingShareFileId = null;
+        let shareExpiryModal = null;
 
-    loadFilesByPath();
-}
-
-// ===== CREATE =====
-function openCreateModal(){
-    new bootstrap.Modal(document.getElementById('createModal')).show();
-}
-
-function createFolder(){
-    const name=document.getElementById("folderName").value;
-    if(!name) return;
-
-    files.push({
-        id:Date.now(),
-        name,
-        type:"folder",
-        parent:currentFolder
-    });
-
-    document.getElementById("folderName").value = "";
-
-    loadFilesByPath();
-}
-
-// ===== DELETE =====
-function deleteItem(id){
-    function deleteRecursive(fid){
-        files.filter(f=>f.parent===fid)
-             .forEach(c=>deleteRecursive(c.id));
-        files=files.filter(f=>f.id!==fid);
-    }
-    deleteRecursive(id);
-    loadFilesByPath();
-}
-
-// ===== RENAME =====
-function renameItem(id){
-    const newName=prompt("Tên mới:");
-    if(!newName) return;
-
-    files=files.map(f=>{
-        if(f.id===id) f.name=newName;
-        return f;
-    });
-
-    loadFilesByPath();
-}
-
-// ===== SEARCH =====
-let searchTimeout;
-
-function searchFile(){
-    clearTimeout(searchTimeout);
-
-    searchTimeout = setTimeout(() => {
-
-        const key = document.getElementById("searchInput").value.trim().toLowerCase();
-
-        // Nếu rỗng → load lại folder
-        if(key === ""){
-            loadFilesByPath();
-            return;
+        function getToken() {
+            return localStorage.getItem("mycloud_token");
         }
 
-        const result = files.filter(f =>
-            f.name.toLowerCase().includes(key)
-        );
+        function authHeaders() {
+            return { "Authorization": `Bearer ${getToken()}` };
+        }
 
-        renderFilesHighlight(result, key);
+        function ensureAuth() {
+            if (!getToken()) {
+                globalThis.location.href = "auth.html";
+                return false;
+            }
+            return true;
+        }
 
-    }, 300); // delay 300ms cho mượt
-}
+        function formatDateTime(isoValue) {
+            if (!isoValue) return "-";
+            const date = new Date(isoValue);
+            if (Number.isNaN(date.getTime())) return isoValue;
+            return date.toLocaleString("vi-VN");
+        }
 
-// ===== OPEN =====
-function openItem(id){
-    const file=files.find(f=>f.id===id);
+        function formatSize(bytes) {
+            const size = Number(bytes || 0);
+            if (!Number.isFinite(size) || size <= 0) return "0 B";
+            if (size < 1024) return `${size} B`;
+            if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+            if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+            return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+        }
 
-    if(file.type==="folder"){
-        currentFolder=file.id;
-        currentPath.push(file.name);
-        loadFilesByPath();
-    } else previewFile(file);
-}
+        function detectIcon(fileName, contentType) {
+            const lower = (fileName || "").toLowerCase();
+            if (contentType?.startsWith("image/")) return "bi-image text-success";
+            if (lower.endsWith(".pdf")) return "bi-file-earmark-pdf text-danger";
+            if (lower.endsWith(".doc") || lower.endsWith(".docx")) return "bi-file-earmark-word text-primary";
+            return "bi-file-earmark text-secondary";
+        }
 
-// ===== PREVIEW =====
-function previewFile(file){
-    let content="";
+        async function loadQuota() {
+            if (!ensureAuth()) return;
+            try {
+                const res = await fetch(`${API_BASE_URL}/auth/me`, { headers: authHeaders() });
+                if (!res.ok) return;
+                const user = await res.json();
+                const used = user.used_storage || 0;
+                const max = user.max_storage || 1;
+                const percent = Math.min(100, Math.round((used / max) * 100));
+                document.getElementById("quotaText").textContent = `${(used / 1048576).toFixed(1)} MB / ${(max / 1048576).toFixed(0)} MB (${percent}%)`;
+                document.getElementById("quotaBar").style.width = `${percent}%`;
+            } catch (e) {
+                console.error("Load quota error:", e);
+            }
+        }
 
-    if(file.type==="image"){
-        content=`<img src="https://via.placeholder.com/400" class="img-fluid">`;
-    }
-    else if(file.name.endsWith(".pdf")){
-        content=`<iframe src="https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf"
-                 width="100%" height="500px"></iframe>`;
-    }
-    else{
-        content=`<p>${file.name}</p>`;
-    }
+        async function loadFiles() {
+            const container = document.getElementById("fileContainer");
+            container.innerHTML = `<div class="col-12 text-center text-secondary py-4">Đang tải tệp...</div>`;
+            try {
+                const folderQuery = currentFolderId !== null ? `?folder_id=${currentFolderId}` : "";
+                const res = await fetch(`${API_BASE_URL}/files/list${folderQuery}`, { headers: authHeaders() });
+                if (res.status === 401) return logout();
+                if (!res.ok) throw new Error(`Load files failed: ${res.status}`);
+                const payload = await res.json();
+                files = Array.isArray(payload?.items) ? payload.items : [];
+                renderFiles(files);
+                setActiveNav();
+            } catch (e) {
+                console.error("Load files error:", e);
+                container.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">Không tải được danh sách tệp.</div></div>`;
+            }
+        }
 
-    document.getElementById("previewContent").innerHTML=content;
-    new bootstrap.Modal(document.getElementById('previewModal')).show();
-}
+        async function loadTrashFiles() {
+            const container = document.getElementById("fileContainer");
+            container.innerHTML = `<div class="col-12 text-center text-secondary py-4">Đang tải thùng rác...</div>`;
+            try {
+                const res = await fetch(`${API_BASE_URL}/files/trash`, { headers: authHeaders() });
+                if (res.status === 401) return logout();
+                if (!res.ok) throw new Error(`Load trash failed: ${res.status}`);
+                const payload = await res.json();
+                trashFiles = Array.isArray(payload?.items) ? payload.items : [];
+                renderTrashFiles(trashFiles);
+            } catch (e) {
+                console.error("Load trash error:", e);
+                container.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">Không tải được thùng rác.</div></div>`;
+            }
+        }
 
-// ===== VIEW MODE =====
-let viewMode = "grid";
+        async function loadSharedLinks() {
+            const container = document.getElementById("fileContainer");
+            container.innerHTML = `<div class="col-12 text-center text-secondary py-4">Đang tải danh sách link chia sẻ...</div>`;
+            try {
+                const response = await fetch(`${API_BASE_URL}/shared-links`, { headers: authHeaders() });
+                if (response.status === 401) return logout();
+                if (!response.ok) throw new Error(`Load shared links failed: ${response.status}`);
+                const payload = await response.json();
+                const items = Array.isArray(payload?.items) ? payload.items : [];
+                sharedLinks = items.map(item => ({
+                    id: item.id,
+                    fileName: item.file_name,
+                    fileSize: item.file_size,
+                    shareLink: item.public_url,
+                    expiresAt: item.expires_at,
+                    createdAt: item.created_at,
+                    isExpired: item.is_expired,
+                }));
+                renderSharedLinks();
+            } catch (error) {
+                console.error("Load shared links error:", error);
+                container.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">Không tải được danh sách link chia sẻ.</div></div>`;
+            }
+        }
 
-// ===== EVENT BUTTON =====
-document.getElementById("gridBtn").onclick = () => {
-    viewMode = "grid";
-    loadFilesByPath();
-};
+        function renderFiles(list) {
+            const container = document.getElementById("fileContainer");
+            if (!list.length) {
+                container.innerHTML = `<div class="col-12"><div class="alert alert-light border mb-0">Thư mục đang trống. Bấm "Mới" để tạo thư mục hoặc tải tệp.</div></div>`;
+                return;
+            }
 
-document.getElementById("listBtn").onclick = () => {
-    viewMode = "list";
-    loadFilesByPath();
-};
+            if (viewMode === "list") {
+                container.innerHTML = `
+                <div class="col-12">
+                    <div class="table-responsive bg-white rounded shadow-sm">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Tên</th>
+                                    <th>Dung lượng</th>
+                                    <th>Cập nhật</th>
+                                    <th class="text-end">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${list.map(item => `
+                                <tr>
+                                    <td>
+                                        <i class="bi ${item.type === "folder" ? "bi-folder-fill text-warning" : detectIcon(item.name, item.content_type)} me-2"></i>
+                                        ${item.name}
+                                    </td>
+                                    <td>${item.type === "folder" ? "-" : formatSize(item.size)}</td>
+                                    <td>${formatDateTime(item.updated_at)}</td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="openItem(${item.id}, '${item.type}')">Mở</button>
+                                        ${item.type === "file" ? `<button class="btn btn-sm btn-outline-success" onclick="shareItem(${item.id})">Share</button>` : ""}
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="renameItem(${item.id}, '${item.type}', '${String(item.name).replace(/'/g, "&#39;")}')">Đổi tên</button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id}, '${item.type}')">Xóa</button>
+                                    </td>
+                                </tr>`).join("")}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>`;
+                return;
+            }
 
-// ===== INIT =====
-loadFilesByPath();
+            container.innerHTML = list.map(item => `
+            <div class="col-md-3 mb-4">
+                <div class="card file-card p-3 text-center position-relative">
+                    <i class="bi ${item.type === "folder" ? "bi-folder-fill text-warning" : detectIcon(item.name, item.content_type)} fs-1"></i>
+                    <h6 class="text-truncate" title="${item.name}">${item.name}</h6>
+                    <div class="small text-muted mb-2">${item.type === "folder" ? "Thư mục" : formatSize(item.size)}</div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-primary w-50" onclick="openItem(${item.id}, '${item.type}')">Mở</button>
+                        ${item.type === "file" ? `<button class="btn btn-sm btn-outline-success w-50" onclick="shareItem(${item.id})">Share</button>` : ""}
+                        <button class="btn btn-sm btn-outline-secondary w-50" onclick="renameItem(${item.id}, '${item.type}', '${String(item.name).replace(/'/g, "&#39;")}')">Đổi tên</button>
+                        <button class="btn btn-sm btn-outline-danger w-50" onclick="deleteItem(${item.id}, '${item.type}')">Xóa</button>
+                    </div>
+                </div>
+            </div>`).join("");
+        }
 
-</script>
+        function navigateToFolder(folderId, folderName) {
+            currentFolderId = folderId;
+            currentPath.push({ id: folderId, name: folderName });
+            loadFiles();
+        }
+
+        function navigateByBreadcrumb(index) {
+            const target = currentPath[index];
+            currentPath = currentPath.slice(0, index + 1);
+            currentFolderId = target.id;
+            loadFiles();
+        }
+
+        function renderTrashFiles(list) {
+            const container = document.getElementById("fileContainer");
+            if (!list.length) {
+                container.innerHTML = `<div class="col-12"><div class="alert alert-light border mb-0">Thùng rác đang trống.</div></div>`;
+                return;
+            }
+
+            container.innerHTML = list.map(file => `
+            <div class="col-12 col-lg-6 col-xxl-4">
+                <div class="card p-3 h-100 shadow-sm border-0">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="fw-semibold"><i class="bi ${detectIcon(file.name, file.content_type)} me-2"></i>${file.name}</div>
+                            <div class="small text-secondary">${formatDateTime(file.updated_at)}</div>
+                        </div>
+                        <span class="badge text-bg-light text-secondary">${formatSize(file.size)}</span>
+                    </div>
+                    <div class="d-flex gap-2 mt-3">
+                        <button class="btn btn-primary flex-fill" onclick="restoreFile(${file.id})">Khôi phục</button>
+                        <button class="btn btn-outline-danger flex-fill" onclick="permanentDelete(${file.id})">Xóa vĩnh viễn</button>
+                    </div>
+                </div>
+            </div>`).join("");
+        }
+
+        function renderSharedLinks() {
+            const container = document.getElementById("fileContainer");
+            if (!sharedLinks.length) {
+                container.innerHTML = `<div class="col-12"><div class="alert alert-light border mb-0">Bạn chưa tạo link chia sẻ nào.</div></div>`;
+                return;
+            }
+
+            container.innerHTML = `
+            <div class="col-12">
+                <div class="table-responsive bg-white rounded shadow-sm">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>File</th>
+                                <th>Link chia sẻ</th>
+                                <th>Ngày hết hạn</th>
+                                <th>Ngày tạo</th>
+                                <th class="text-end">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${sharedLinks.map(link => `
+                            <tr>
+                                <td><div class="fw-semibold">${link.fileName}</div><div class="small text-secondary">${formatSize(link.fileSize)}</div></td>
+                                <td><a href="${link.shareLink}" target="_blank" rel="noreferrer">${link.shareLink}</a></td>
+                                <td>${link.expiresAt ? formatDateTime(link.expiresAt) : "Không hết hạn"}${link.isExpired ? " <span class='badge text-bg-danger ms-1'>Hết hạn</span>" : ""}</td>
+                                <td>${formatDateTime(link.createdAt)}</td>
+                                <td class="text-end"><button class="btn btn-outline-danger btn-sm" onclick="revokeLink(${link.id})">Thu hồi</button></td>
+                            </tr>`).join("")}
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+        }
+
+        function setActiveNav() {
+            const filesNav = document.getElementById("nav-files");
+            const uploadNav = document.getElementById("nav-upload");
+            const sharedNav = document.getElementById("nav-shared");
+            const trashNav = document.getElementById("nav-trash");
+            const filesBtn = document.getElementById("filesSectionBtn");
+            const sharedBtn = document.getElementById("sharedSectionBtn");
+            const trashBtn = document.getElementById("trashSectionBtn");
+            const title = document.getElementById("sectionTitle");
+            const isUploadPage = globalThis.location.pathname.toLowerCase().endsWith("uploadfile.html");
+
+            if (filesNav) filesNav.classList.toggle("active", !isUploadPage && currentSection === "files");
+            if (uploadNav) uploadNav.classList.toggle("active", isUploadPage);
+            if (sharedNav) sharedNav.classList.toggle("active", !isUploadPage && currentSection === "shared");
+            if (trashNav) trashNav.classList.toggle("active", !isUploadPage && currentSection === "trash");
+
+            if (filesBtn) filesBtn.classList.toggle("active", currentSection === "files");
+            if (sharedBtn) sharedBtn.classList.toggle("active", currentSection === "shared");
+            if (trashBtn) trashBtn.classList.toggle("active", currentSection === "trash");
+
+            if (title) {
+                if (currentSection === "files") title.textContent = "Tệp và thư mục";
+                if (currentSection === "shared") title.textContent = "Đã chia sẻ";
+                if (currentSection === "trash") title.textContent = "Thùng rác";
+            }
+
+            const breadcrumb = document.getElementById("breadcrumb");
+            if (breadcrumb) {
+                if (currentSection !== "files") {
+                    breadcrumb.innerHTML = `<li class="breadcrumb-item active">Trang chủ</li>`;
+                } else {
+                    breadcrumb.innerHTML = currentPath
+                        .map((node, idx) => {
+                            if (idx === currentPath.length - 1) {
+                                return `<li class="breadcrumb-item active">${node.name}</li>`;
+                            }
+                            return `<li class="breadcrumb-item"><a href="#" onclick="event.preventDefault(); navigateByBreadcrumb(${idx})">${node.name}</a></li>`;
+                        })
+                        .join("");
+                }
+            }
+        }
+
+        async function renderActiveSection() {
+            if (currentSection === "shared") return loadSharedLinks();
+            if (currentSection === "trash") return loadTrashFiles();
+            return loadFiles();
+        }
+
+        async function switchSection(section) {
+            currentSection = section;
+            if (section === "files") {
+                currentFolderId = null;
+                currentPath = [{ id: null, name: "Trang chủ" }];
+            }
+            setActiveNav();
+            await renderActiveSection();
+        }
+
+        async function deleteItem(id, type) {
+            try {
+                let res;
+                if (type === "folder") {
+                    if (!confirm("Xóa thư mục này và toàn bộ nội dung bên trong?")) return;
+                    res = await fetch(`${API_BASE_URL}/files/folders/${id}`, { method: "DELETE", headers: authHeaders() });
+                } else {
+                    if (!confirm("Chuyển file vào thùng rác?")) return;
+                    res = await fetch(`${API_BASE_URL}/files/${id}`, { method: "DELETE", headers: authHeaders() });
+                }
+                if (res.status === 401) return logout();
+                if (!res.ok) throw new Error("Xóa thất bại");
+                await loadFiles();
+                await loadQuota();
+            } catch (e) {
+                alert(e.message || "Xóa thất bại");
+            }
+        }
+
+        async function renameItem(id, type, oldName) {
+            const newName = prompt("Nhập tên mới:", oldName || "");
+            if (!newName || !newName.trim()) return;
+
+            try {
+                const url = type === "folder"
+                    ? `${API_BASE_URL}/files/folders/${id}/rename`
+                    : `${API_BASE_URL}/files/${id}/rename`;
+                const res = await fetch(url, {
+                    method: "PATCH",
+                    headers: {
+                        ...authHeaders(),
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ new_name: newName.trim() }),
+                });
+                if (res.status === 401) return logout();
+                if (!res.ok) throw new Error("Đổi tên thất bại");
+                await loadFiles();
+            } catch (e) {
+                alert(e.message || "Đổi tên thất bại");
+            }
+        }
+
+        function getDefaultExpiryLocalValue() {
+            const d = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            const pad = (n) => String(n).padStart(2, "0");
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+
+        function getNowLocalValue() {
+            const d = new Date();
+            const pad = (n) => String(n).padStart(2, "0");
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+
+        function toMinuteKey(value) {
+            if (!value) return "";
+            // Normalize both "YYYY-MM-DDTHH:mm" and ISO timestamps to minute precision.
+            return String(value).replace(" ", "T").slice(0, 16);
+        }
+
+        function openShareModal(id) {
+            pendingShareFileId = id;
+            const noExpiryInput = document.getElementById("shareNoExpiry");
+            const expiryInput = document.getElementById("shareExpiryAt");
+            noExpiryInput.checked = false;
+            expiryInput.disabled = false;
+            expiryInput.min = getNowLocalValue();
+            expiryInput.value = getDefaultExpiryLocalValue();
+            shareExpiryModal.show();
+        }
+
+        async function shareItem(id) {
+            openShareModal(id);
+        }
+
+        async function submitShareFromModal() {
+            if (!pendingShareFileId) return;
+            try {
+                const noExpiryInput = document.getElementById("shareNoExpiry");
+                const expiryInput = document.getElementById("shareExpiryAt");
+
+                const payload = { file_id: pendingShareFileId };
+                let selectedExpiry = null;
+                if (!noExpiryInput.checked) {
+                    if (!expiryInput.value) {
+                        alert("Vui lòng chọn ngày giờ hết hạn hoặc tick 'Không đặt thời hạn'.");
+                        return;
+                    }
+
+                    selectedExpiry = new Date(expiryInput.value);
+                    if (Number.isNaN(selectedExpiry.getTime())) {
+                        alert("Ngày giờ hết hạn không hợp lệ.");
+                        return;
+                    }
+
+                    const now = new Date();
+                    if (selectedExpiry <= now) {
+                        alert("Ngày giờ hết hạn phải lớn hơn thời điểm hiện tại.");
+                        return;
+                    }
+
+                    // Primary field for new backend logic.
+                    payload.expiration_at = expiryInput.value;
+
+                    // Backward-compatible fallback for stale backend processes.
+                    const diffMinutes = Math.max(1, Math.ceil((selectedExpiry.getTime() - now.getTime()) / 60000));
+                    payload.expiration_value = diffMinutes;
+                    payload.expiration_unit = "minute";
+                }
+
+                const res = await fetch(`${API_BASE_URL}/shared-links`, {
+                    method: "POST",
+                    headers: {
+                        ...authHeaders(),
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (res.status === 401) return logout();
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err?.detail || "Tạo link share thất bại");
+                }
+
+                const data = await res.json();
+                const shareLink = data.public_url || "";
+
+                try {
+                    await navigator.clipboard.writeText(shareLink);
+                } catch { }
+
+                const expiryText = data.expires_at ? formatDateTime(data.expires_at) : "Không đặt hạn";
+                alert(`Đã tạo link share.\nHết hạn: ${expiryText}\n${shareLink}`);
+
+                if (selectedExpiry && data.expires_at) {
+                    const selectedKey = toMinuteKey(expiryInput.value);
+                    const serverKey = toMinuteKey(data.expires_at);
+                    if (selectedKey && serverKey && selectedKey !== serverKey) {
+                        alert(`Cảnh báo: thời gian hết hạn server trả về lệch so với thời gian bạn chọn.\nBạn chọn: ${selectedKey}\nServer trả về: ${serverKey}`);
+                    }
+                }
+
+                shareExpiryModal.hide();
+                if (currentSection === "shared") {
+                    await loadSharedLinks();
+                }
+            } catch (error) {
+                alert(error.message || "Tạo link share thất bại");
+            }
+        }
+
+        async function restoreFile(id) {
+            try {
+                const res = await fetch(`${API_BASE_URL}/files/${id}/restore`, { method: "POST", headers: authHeaders() });
+                if (res.status === 401) return logout();
+                if (!res.ok) throw new Error("Khôi phục file thất bại");
+                await loadTrashFiles();
+            } catch (e) {
+                alert(e.message || "Khôi phục thất bại");
+            }
+        }
+
+        async function permanentDelete(id) {
+            if (!confirm("Xóa vĩnh viễn file này?")) return;
+            try {
+                const res = await fetch(`${API_BASE_URL}/files/${id}/permanent`, { method: "DELETE", headers: authHeaders() });
+                if (res.status === 401) return logout();
+                if (!res.ok) throw new Error("Xóa vĩnh viễn thất bại");
+                await loadTrashFiles();
+                await loadQuota();
+            } catch (e) {
+                alert(e.message || "Xóa vĩnh viễn thất bại");
+            }
+        }
+
+        async function revokeLink(id) {
+            if (!confirm("Bạn có chắc muốn thu hồi link chia sẻ này?")) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/shared-links/${id}`, { method: "DELETE", headers: authHeaders() });
+                if (response.status === 401) return logout();
+                if (!response.ok) throw new Error("Thu hồi link thất bại");
+                await loadSharedLinks();
+            } catch (error) {
+                alert(error.message || "Thu hồi link thất bại");
+            }
+        }
+
+        async function openItem(id, type) {
+            const item = files.find(fileItem => fileItem.id === id);
+            if (!item) return;
+
+            if (type === "folder") {
+                navigateToFolder(id, item.name);
+                return;
+            }
+
+            if ((item.content_type || "").startsWith("image/") || item.content_type === "text/plain" || item.content_type === "application/pdf") {
+                globalThis.open(`${API_BASE_URL}/files/${id}/preview`, "_blank");
+                return;
+            }
+
+            globalThis.open(item.blob_url, "_blank");
+        }
+
+        async function searchFile() {
+            const key = (document.getElementById("searchInput")?.value || "").trim().toLowerCase();
+            if (currentSection === "files") {
+                if (!key) {
+                    await loadFiles();
+                    return;
+                }
+                try {
+                    const res = await fetch(`${API_BASE_URL}/files/search?q=${encodeURIComponent(key)}`, { headers: authHeaders() });
+                    if (res.status === 401) return logout();
+                    if (!res.ok) throw new Error("Tìm kiếm thất bại");
+                    const data = await res.json();
+                    files = Array.isArray(data) ? data : [];
+                    renderFiles(files);
+                } catch (e) {
+                    alert(e.message || "Tìm kiếm thất bại");
+                }
+                return;
+            }
+            if (currentSection === "trash") {
+                if (!key) return renderTrashFiles(trashFiles);
+                renderTrashFiles(trashFiles.filter(file => file.name.toLowerCase().includes(key)));
+            }
+        }
+
+        function openCreateModal() {
+            if (currentSection !== "files") {
+                alert("Chỉ có thể tạo mới trong mục Tệp của tôi.");
+                return;
+            }
+
+            const createFolder = confirm("Nhấn OK để tạo thư mục mới. Nhấn Cancel để tải tệp lên.");
+            if (createFolder) {
+                createFolderItem();
+            } else {
+                document.getElementById("realUploadInput").click();
+            }
+        }
+
+        async function createFolderItem() {
+            const folderName = prompt("Nhập tên thư mục mới:");
+            if (!folderName || !folderName.trim()) return;
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/files/folders`, {
+                    method: "POST",
+                    headers: {
+                        ...authHeaders(),
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ name: folderName.trim(), folder_id: currentFolderId }),
+                });
+                if (res.status === 401) return logout();
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err?.detail || "Tạo thư mục thất bại");
+                }
+
+                await loadFiles();
+            } catch (e) {
+                alert(e.message || "Tạo thư mục thất bại");
+            }
+        }
+
+        async function uploadSelectedFiles(event) {
+            const selectedFiles = Array.from(event.target.files || []);
+            if (!selectedFiles.length) return;
+
+            for (const file of selectedFiles) {
+                const formData = new FormData();
+                formData.append("file", file);
+                if (currentFolderId !== null) {
+                    formData.append("folder_id", String(currentFolderId));
+                }
+                const res = await fetch(`${API_BASE_URL}/files/upload`, {
+                    method: "POST",
+                    headers: authHeaders(),
+                    body: formData,
+                });
+
+                if (res.status === 401) {
+                    logout();
+                    return;
+                }
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    alert(err?.detail || `Upload thất bại: ${file.name}`);
+                }
+            }
+
+            event.target.value = "";
+            await loadFiles();
+            await loadQuota();
+        }
+
+        function openUpdateProfileModal() {
+            alert("Chức năng hồ sơ đang được hoàn thiện.");
+        }
+
+        function openChangePasswordModal() {
+            alert("Bạn có thể đổi mật khẩu ở API /auth/change-password.");
+        }
+
+        document.getElementById("gridBtn").onclick = () => {
+            viewMode = "grid";
+            if (currentSection === "files") renderFiles(files);
+        };
+
+        document.getElementById("listBtn").onclick = () => {
+            viewMode = "list";
+            if (currentSection === "files") renderFiles(files);
+        };
+
+        document.getElementById("realUploadInput").addEventListener("change", uploadSelectedFiles);
+        document.getElementById("shareNoExpiry").addEventListener("change", (event) => {
+            const expiryInput = document.getElementById("shareExpiryAt");
+            expiryInput.disabled = event.target.checked;
+        });
+        document.getElementById("confirmShareBtn").addEventListener("click", submitShareFromModal);
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            if (!ensureAuth()) return;
+            shareExpiryModal = new bootstrap.Modal(document.getElementById("shareExpiryModal"));
+            await loadQuota();
+            const sectionFromQuery = new URLSearchParams(globalThis.location.search).get("section");
+            const allowedSections = ["files", "shared", "trash"];
+            await switchSection(allowedSections.includes(sectionFromQuery) ? sectionFromQuery : "files");
+        });
+    </script>
+
+    <!-- Script Logout -->
+    <script src="js/logout.js"></script>
+
+
 
 </body>
+
 </html>
