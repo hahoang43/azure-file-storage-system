@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, BigInteger
-from sqlalchemy.orm import relationship, synonym
+from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
 
@@ -24,7 +24,6 @@ class Folder(Base):
     name = Column(String(255), nullable=False)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     parent_id = Column(Integer, ForeignKey("folders.id"), nullable=True)
-    folder_id = synonym("parent_id")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     owner = relationship("User", back_populates="folders")

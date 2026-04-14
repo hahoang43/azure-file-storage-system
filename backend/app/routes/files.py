@@ -45,16 +45,6 @@ def _to_file_item(file_obj: models.File) -> schemas.FileItemResponse:
     )
 
 
-def _to_folder_item(folder_obj: models.Folder) -> schemas.FolderItemResponse:
-    return schemas.FolderItemResponse(
-        id=folder_obj.id,
-        name=folder_obj.name,
-        created_at=folder_obj.created_at,
-        updated_at=folder_obj.updated_at,
-        type="folder",
-    )
-
-
 def _ensure_unique_file_name(
     db: Session,
     current_user: models.User,
@@ -108,36 +98,6 @@ def list_trash(
     return {"items": [_to_file_item(item) for item in items]}
 
 
-@router.post("/folders", response_model=schemas.FolderItemResponse, status_code=status.HTTP_201_CREATED)
-def create_folder(
-    folder_create: schemas.FolderCreateRequest,
-    db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[models.User, Depends(get_current_user)],
-):
-    # Kiểm tra parent folder tồn tại
-    if folder_create.folder_id:
-        parent_folder = (
-            db.query(models.Folder)
-            .filter(
-                models.Folder.id == folder_create.folder_id,
-                models.Folder.owner_id == current_user.id
-            )
-            .first()
-        )
-        if not parent_folder:
-            raise HTTPException(status_code=404, detail="Thư mục cha không tồn tại")
-    
-    new_folder = models.Folder(
-        name=folder_create.name,
-        owner_id=current_user.id,
-        folder_id=folder_create.folder_id,
-    )
-    db.add(new_folder)
-    db.commit()
-    db.refresh(new_folder)
-    return _to_folder_item(new_folder)
-
-
 @router.post("/upload", response_model=schemas.FileItemResponse, status_code=status.HTTP_201_CREATED)
 async def upload_file(
     file: Annotated[UploadFile, FastAPIFile(...)],
@@ -145,16 +105,6 @@ async def upload_file(
     current_user: Annotated[models.User, Depends(get_current_user)],
     folder_id: Annotated[int | None, Form()] = None,
 ):
-    # Kiểm tra folder tồn tại
-    if folder_id:
-        folder_obj = (
-            db.query(models.Folder)
-            .filter(models.Folder.id == folder_id, models.Folder.owner_id == current_user.id)
-            .first()
-        )
-        if not folder_obj:
-            raise HTTPException(status_code=404, detail="Thu muc khong ton tai")
-    
     safe_name = Path(file.filename or "uploaded_file").name
     contents = await file.read()
     size_bytes = len(contents)
@@ -318,183 +268,4 @@ def public_content(
         media_type=file_obj.content_type,
         filename=file_obj.name,
         content_disposition_type=disposition_type,
-    )
-
-
-@router.patch("/{file_id}/rename", response_model=schemas.FileActionResponse)
-def rename_file(
-    file_id: int,
-    request: schemas.RenameRequest,
-    db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[models.User, Depends(get_current_user)],
-):
-    file_obj = (
-        db.query(models.File)
-        .filter(models.File.id == file_id, models.File.owner_id == current_user.id)
-        .first()
-    )
-    if not file_obj:
-        raise HTTPException(status_code=404, detail="Khong tim thay file")
-
-    # Đổi tên file trên hệ thống
-    old_path = _find_saved_file_path(current_user.id, file_obj.id)
-    if old_path and old_path.exists():
-        new_path = old_path.parent / f"{file_obj.id}__{request.new_name}"
-        old_path.rename(new_path)
-
-    file_obj.name = request.new_name
-    db.commit()
-    return {"success": True, "message": "Da doi ten file"}
-
-
-@router.patch("/folders/{folder_id}/rename", response_model=schemas.FileActionResponse)
-def rename_folder(
-    folder_id: int,
-    request: schemas.RenameRequest,
-    db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[models.User, Depends(get_current_user)],
-):
-    folder_obj = (
-        db.query(models.Folder)
-        .filter(models.Folder.id == folder_id, models.Folder.owner_id == current_user.id)
-        .first()
-    )
-    if not folder_obj:
-        raise HTTPException(status_code=404, detail="Khong tim thay thu muc")
-
-    folder_obj.name = request.new_name
-    db.commit()
-    return {"success": True, "message": "Da doi ten thu muc"}
-
-
-def _delete_folder_recursive(folder_id: int, owner_id: int, db: Session, current_user: models.User):
-    """Xóa folder và toàn bộ files/folders bên trong"""
-    # Lấy tất cả files trong folder
-    files = db.query(models.File).filter(models.File.folder_id == folder_id).all()
-    for file in files:
-        # Xóa file từ storage
-        saved_path = _find_saved_file_path(owner_id, file.id)
-        if saved_path and saved_path.exists():
-            saved_path.unlink(missing_ok=True)
-        
-        # Xóa shared links
-        db.query(models.SharedLink).filter(models.SharedLink.file_id == file.id).delete()
-        
-        # Cập nhật storage
-        if file.size:
-            current_user.used_storage = max(0, int(current_user.used_storage - file.size))
-        
-        db.query(models.File).filter(models.File.id == file.id).delete(synchronize_session=False)
-    
-    # Xóa tất cả subfolders
-    subfolders = db.query(models.Folder).filter(models.Folder.folder_id == folder_id).all()
-    for subfolder in subfolders:
-        _delete_folder_recursive(subfolder.id, owner_id, db, current_user)
-    
-    # Xóa folder hiện tại. Dùng query.delete để kiểm soát thứ tự xóa với self-FK.
-    db.query(models.Folder).filter(models.Folder.id == folder_id).delete(synchronize_session=False)
-
-
-@router.delete("/folders/{folder_id}", response_model=schemas.FileActionResponse)
-def delete_folder(
-    folder_id: int,
-    db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[models.User, Depends(get_current_user)],
-):
-    folder_obj = (
-        db.query(models.Folder)
-        .filter(models.Folder.id == folder_id, models.Folder.owner_id == current_user.id)
-        .first()
-    )
-    if not folder_obj:
-        raise HTTPException(status_code=404, detail="Khong tim thay thu muc")
-
-    _delete_folder_recursive(folder_id, current_user.id, db, current_user)
-    db.commit()
-    return {"success": True, "message": "Da xoa thu muc va tat ca noi dung ben trong"}
-
-
-@router.get("/search", response_model=list[schemas.SearchResultResponse])
-def search_files(
-    q: Annotated[str, Query(min_length=1)],
-    db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[models.User, Depends(get_current_user)],
-):
-    # Tìm files
-    files = (
-        db.query(models.File)
-        .filter(
-            models.File.owner_id == current_user.id,
-            models.File.name.ilike(f"%{q}%"),
-            models.File.is_deleted.is_(False)
-        )
-        .all()
-    )
-    
-    # Tìm folders
-    folders = (
-        db.query(models.Folder)
-        .filter(
-            models.Folder.owner_id == current_user.id,
-            models.Folder.name.ilike(f"%{q}%")
-        )
-        .all()
-    )
-    
-    results = []
-    for file in files:
-        results.append(schemas.SearchResultResponse(
-            id=file.id,
-            name=file.name,
-            type="file",
-            size=file.size,
-            created_at=file.created_at,
-            updated_at=file.updated_at,
-        ))
-    
-    for folder in folders:
-        results.append(schemas.SearchResultResponse(
-            id=folder.id,
-            name=folder.name,
-            type="folder",
-            created_at=folder.created_at,
-            updated_at=folder.updated_at,
-        ))
-    
-    return results
-
-
-@router.get("/{file_id}/preview")
-def preview_file(
-    file_id: int,
-    db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[models.User, Depends(get_current_user)],
-):
-    file_obj = (
-        db.query(models.File)
-        .filter(
-            models.File.id == file_id,
-            models.File.owner_id == current_user.id,
-            models.File.is_deleted.is_(False)
-        )
-        .first()
-    )
-    if not file_obj:
-        raise HTTPException(status_code=404, detail="Khong tim thay file")
-
-    # Cho phép preview theo MIME hoặc theo phần mở rộng khi client upload thiếu content-type.
-    allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp", "text/plain", "application/pdf"}
-    previewable_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".txt", ".pdf"}
-    ext = Path(file_obj.name).suffix.lower()
-    if file_obj.content_type not in allowed_types and ext not in previewable_exts:
-        raise HTTPException(status_code=400, detail="Khong the xem truoc file nay")
-
-    saved_path = _find_saved_file_path(current_user.id, file_obj.id)
-    if not saved_path or not saved_path.exists():
-        raise HTTPException(status_code=404, detail="Noi dung file khong ton tai")
-
-    return FileResponse(
-        path=saved_path,
-        media_type=file_obj.content_type,
-        filename=file_obj.name,
     )

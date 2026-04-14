@@ -85,18 +85,6 @@ class FileItemResponse(BaseModel):
     type: str = "file"
 
 
-class FolderItemResponse(BaseModel):
-    id: int
-    name: str
-    created_at: datetime
-    updated_at: datetime
-    type: str = "folder"
-
-
-class ItemListResponse(BaseModel):
-    items: list[FileItemResponse | FolderItemResponse]
-
-
 class FileListResponse(BaseModel):
     items: list[FileItemResponse]
 
@@ -106,39 +94,13 @@ class FileActionResponse(BaseModel):
     message: str
 
 
-class FolderItemResponse(BaseModel):
-    id: int
+class FileRenameRequest(BaseModel):
     name: str
-    created_at: datetime
-    updated_at: datetime
-    type: str = "folder"
-
-
-class ItemListResponse(BaseModel):
-    items: list[FileItemResponse | FolderItemResponse]
 
 
 class FolderCreateRequest(BaseModel):
     name: str
     parent_id: Optional[int] = None
-    folder_id: Optional[int] = None
-
-
-class RenameRequest(BaseModel):
-    new_name: str
-
-
-class SearchResultResponse(BaseModel):
-    id: int
-    name: str
-    type: str
-    size: Optional[int] = None
-    created_at: datetime
-    updated_at: datetime
-
-
-class FileRenameRequest(BaseModel):
-    name: str
 
 
 class FolderRenameRequest(BaseModel):

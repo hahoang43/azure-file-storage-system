@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auth Page - MyCloud</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
+  <div class="w-full max-w-md">
+    <a href="/" class="flex items-center justify-center space-x-2 mb-8">
+      <div class="bg-gradient-to-br from-blue-500 to-blue-600 p-3 rounded-xl">
+        <i data-lucide="cloud" class="w-8 h-8 text-white"></i>
+      </div>
+      <span class="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">
+        MyCloud
+      </span>
+    </a>
+
+    <div class="bg-white rounded-2xl shadow-xl p-8">
+      <div class="flex bg-gray-100 rounded-lg p-1 mb-6">
+        <button id="loginTab"
+          class="flex-1 py-2.5 px-4 rounded-md font-medium transition-all bg-white text-blue-600 shadow-sm"
+          onclick="showTab(true)">
+          Đăng nhập
+        </button>
+        <button id="registerTab"
+          class="flex-1 py-2.5 px-4 rounded-md font-medium transition-all text-gray-600 hover:text-gray-900"
+          onclick="showTab(false)">
+          Đăng ký
+        </button>
+      </div>
+
+      <div class="relative overflow-hidden">
+        
+        <form id="loginForm">
+          <div class="mb-4">
+            <label class="block mb-1 font-medium" for="login-username">Tên đăng nhập</label>
+            <input class="w-full border rounded px-3 py-2" type="text" id="login-username" required>
+          </div>
+          <div class="mb-4">
+            <label class="block mb-1 font-medium" for="login-password">Mật khẩu</label>
+            <input class="w-full border rounded px-3 py-2" type="password" id="login-password" required>
+          </div>
+          <div id="login-error" class="text-red-600 mb-2 text-sm text-center"></div>
+          <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700 transition">Đăng nhập ngay</button>
+        </form>
+
+        <form id="registerForm" class="hidden">
+          <div class="mb-4">
+            <label class="block mb-1 font-medium" for="register-username">Tên đăng nhập</label>
+            <input class="w-full border rounded px-3 py-2" type="text" id="register-username" required>
+          </div>
+          <div class="mb-4">
+            <label class="block mb-1 font-medium" for="register-email">Email</label>
+            <input class="w-full border rounded px-3 py-2" type="email" id="register-email" required>
+          </div>
+          <div class="mb-4">
+            <label class="block mb-1 font-medium" for="register-password">Mật khẩu</label>
+            <input class="w-full border rounded px-3 py-2" type="password" id="register-password" required>
+          </div>
+          <div class="mb-4">
+            <label class="block mb-1 font-medium" for="register-confirm">Xác nhận mật khẩu</label>
+            <input class="w-full border rounded px-3 py-2" type="password" id="register-confirm" required>
+          </div>
+          <div id="register-error" class="text-red-600 mb-2 text-sm text-center"></div>
+          <button type="submit" class="w-full bg-green-600 text-white py-2 rounded font-semibold hover:bg-green-700 transition">Tạo tài khoản</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    // Logic chuyển Tab giao diện
+    function showTab(isLogin) {
+      document.getElementById('loginForm').classList.toggle('hidden', !isLogin);
+      document.getElementById('registerForm').classList.toggle('hidden', isLogin);
+      
+      document.getElementById('loginTab').className = isLogin 
+        ? "flex-1 py-2.5 px-4 rounded-md font-medium transition-all bg-white text-blue-600 shadow-sm" 
+        : "flex-1 py-2.5 px-4 rounded-md font-medium transition-all text-gray-600 hover:text-gray-900";
+        
+      document.getElementById('registerTab').className = !isLogin 
+        ? "flex-1 py-2.5 px-4 rounded-md font-medium transition-all bg-white text-blue-600 shadow-sm" 
+        : "flex-1 py-2.5 px-4 rounded-md font-medium transition-all text-gray-600 hover:text-gray-900";
+    }
+  </script>
+  
+  <script src="js/auth.js"></script>
+</body>
+</html>
