@@ -5,7 +5,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MyCloud - Quản lý tệp tin</title>
+    <title>MyCloud - Quß║ún l├╜ tß╗çp tin</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
@@ -42,6 +42,9 @@
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </div>
+                            <button class="btn btn-outline-primary btn-sm shadow-sm bg-white rounded border px-3" onclick="openCreateFolderModal()">
+                                <i class="bi bi-folder-plus me-1"></i> Th╞░ mß╗Ñc
+                            </button>
                             <div class="btn-group shadow-sm bg-white rounded border">
                                 <button id="gridBtn" class="btn btn-light btn-sm active border-0 px-3"><i
                                         class="bi bi-grid-3x3-gap-fill"></i></button>
@@ -50,6 +53,7 @@
                             </div>
                         </div>
                     </div>
+                    <div id="folderContainer" class="row g-3 mb-3"></div>
                     <div id="fileContainer" class="row g-3"></div>
                 </div>
             </div>
@@ -61,30 +65,49 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="shareExpiryModalLabel">Tạo link chia sẻ</h5>
+                    <h5 class="modal-title" id="shareExpiryModalLabel">Tß║ío link chia sß║╗</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" value="" id="shareNoExpiry">
                         <label class="form-check-label" for="shareNoExpiry">
-                            Không đặt thời hạn
+                            Kh├┤ng ─æß║╖t thß╗¥i hß║ín
                         </label>
                     </div>
-                    <label for="shareExpiryAt" class="form-label">Hạn share (ngày/giờ)</label>
+                    <label for="shareExpiryAt" class="form-label">Hß║ín share (ng├áy/giß╗¥)</label>
                     <input type="datetime-local" id="shareExpiryAt" class="form-control">
-                    <div class="form-text">Bạn có thể bấm vào ô để chọn theo lịch và giờ.</div>
+                    <div class="form-text">Bß║ín c├│ thß╗â bß║Ñm v├áo ├┤ ─æß╗â chß╗ìn theo lß╗ïch v├á giß╗¥.</div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Huỷ</button>
-                    <button type="button" class="btn btn-primary" id="confirmShareBtn">Tạo link</button>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Huß╗╖</button>
+                    <button type="button" class="btn btn-primary" id="confirmShareBtn">Tß║ío link</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="previewModalLabel">Xem tr╞░ß╗¢c</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="previewContainer" class="d-flex align-items-center justify-content-center" style="min-height: 60vh;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" id="openPreviewTabBtn">Mß╗ƒ tab mß╗¢i</button>
+                    <button type="button" class="btn btn-outline-primary" id="downloadPreviewBtn">Tß║úi xuß╗æng</button>
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">─É├│ng</button>
                 </div>
             </div>
         </div>
     </div>
     <script>
         const API_BASE_URL = "http://127.0.0.1:8000";
-        // Tải component sidebar và topbar vào index.html, sau đó mới chạy các script phụ thuộc DOM
+        // Tß║úi component sidebar v├á topbar v├áo index.html, sau ─æ├│ mß╗¢i chß║íy c├íc script phß╗Ñ thuß╗Öc DOM
         globalThis.addEventListener('DOMContentLoaded', function () {
             Promise.all([
                 fetch('components/sidebar.html').then(r => r.text()).then(html => {
@@ -94,14 +117,14 @@
                     document.getElementById('topbar-container').innerHTML = html;
                 })
             ]).then(() => {
-                // Sau khi đã render xong sidebar/topbar, mới chạy các script phụ thuộc DOM
+                // Sau khi ─æ├ú render xong sidebar/topbar, mß╗¢i chß║íy c├íc script phß╗Ñ thuß╗Öc DOM
                 if (typeof setActiveNav === 'function') setActiveNav();
                 if (typeof loadQuota === 'function') loadQuota();
 
-                // Hiển thị tên người dùng từ localStorage (username)
+                // Hiß╗ân thß╗ï t├¬n ng╞░ß╗¥i d├╣ng tß╗½ localStorage (username)
                 let username = localStorage.getItem("mycloud_username");
                 if (!username) {
-                    // Nếu không có, thử lấy từ token (nếu token là JWT chuẩn)
+                    // Nß║┐u kh├┤ng c├│, thß╗¡ lß║Ñy tß╗½ token (nß║┐u token l├á JWT chuß║⌐n)
                     const token = localStorage.getItem("mycloud_token");
                     if (token) {
                         try {
@@ -122,14 +145,17 @@
 
     <script>
         let files = [];
+        let folders = [];
         let trashFiles = [];
         let sharedLinks = [];
         let currentSection = "files";
-        let viewMode = "grid";
         let currentFolderId = null;
-        let currentPath = [{ id: null, name: "Trang chủ" }];
+        let currentPath = [{ id: null, name: "Home" }];
+        let viewMode = "grid";
         let pendingShareFileId = null;
         let shareExpiryModal = null;
+        let previewModal = null;
+        let currentPreviewFile = null;
 
         function getToken() {
             return localStorage.getItem("mycloud_token");
@@ -171,6 +197,56 @@
             return "bi-file-earmark text-secondary";
         }
 
+        function escapeAttr(value) {
+            return escapeHtml(value).replaceAll("`", "&#96;");
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
+        }
+
+        function renderBreadcrumb() {
+            const breadcrumb = document.getElementById("breadcrumb");
+            if (!breadcrumb) return;
+
+            if (!currentPath || !currentPath.length) {
+                breadcrumb.innerHTML = `<li class="breadcrumb-item active">Trang chß╗º</li>`;
+                return;
+            }
+
+            const pathHtml = currentPath.map((item, index) => {
+                const isLast = index === currentPath.length - 1;
+                if (isLast) {
+                    return `<li class="breadcrumb-item active">${escapeHtml(item.name)}</li>`;
+                }
+                return `<li class="breadcrumb-item"><a href="#" onclick="goToPath(${index}); return false;">${escapeHtml(item.name)}</a></li>`;
+            }).join("");
+
+            breadcrumb.innerHTML = pathHtml;
+        }
+
+        function goToPath(index) {
+            currentPath = currentPath.slice(0, index + 1);
+            currentFolderId = currentPath.length > 1 ? currentPath[currentPath.length - 1].id : null;
+            refreshFilesSection();
+        }
+
+        function goToRoot() {
+            currentFolderId = null;
+            currentPath = [{ id: null, name: "Home" }];
+            refreshFilesSection();
+        }
+
+        async function refreshFilesSection() {
+            await Promise.all([loadFolders(), loadFiles()]);
+            renderBreadcrumb();
+        }
+
         async function loadQuota() {
             if (!ensureAuth()) return;
             try {
@@ -187,27 +263,73 @@
             }
         }
 
+        async function loadFolders() {
+            if (!ensureAuth()) return;
+            try {
+                const query = currentFolderId !== null ? `?parent_id=${currentFolderId}` : "";
+                const res = await fetch(`${API_BASE_URL}/folders${query}`, { headers: authHeaders() });
+                if (res.status === 401) return logout();
+                if (!res.ok) throw new Error(`Load folders failed: ${res.status}`);
+                const payload = await res.json();
+                folders = Array.isArray(payload?.items) ? payload.items : [];
+                renderFolders(folders);
+            } catch (e) {
+                console.error("Load folders error:", e);
+                const container = document.getElementById("folderContainer");
+                if (container) {
+                    container.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">Kh├┤ng tß║úi ─æ╞░ß╗úc danh s├ích th╞░ mß╗Ñc.</div></div>`;
+                }
+            }
+        }
+
         async function loadFiles() {
             const container = document.getElementById("fileContainer");
-            container.innerHTML = `<div class="col-12 text-center text-secondary py-4">Đang tải tệp...</div>`;
+            container.innerHTML = `<div class="col-12 text-center text-secondary py-4">─Éang tß║úi tß╗çp...</div>`;
             try {
-                const folderQuery = currentFolderId !== null ? `?folder_id=${currentFolderId}` : "";
+                const folderQuery = currentFolderId ? `?folder_id=${currentFolderId}` : "";
                 const res = await fetch(`${API_BASE_URL}/files/list${folderQuery}`, { headers: authHeaders() });
                 if (res.status === 401) return logout();
                 if (!res.ok) throw new Error(`Load files failed: ${res.status}`);
                 const payload = await res.json();
                 files = Array.isArray(payload?.items) ? payload.items : [];
                 renderFiles(files);
-                setActiveNav();
+                renderBreadcrumb();
             } catch (e) {
                 console.error("Load files error:", e);
-                container.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">Không tải được danh sách tệp.</div></div>`;
+                container.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">Kh├┤ng tß║úi ─æ╞░ß╗úc danh s├ích tß╗çp.</div></div>`;
             }
+        }
+
+        function renderFolders(list) {
+            const container = document.getElementById("folderContainer");
+            if (!container) return;
+
+            if (!list.length) {
+                container.innerHTML = `<div class="col-12"><div class="alert alert-light border mb-0">Ch╞░a c├│ th╞░ mß╗Ñc n├áo. Bß║Ñm "Th╞░ mß╗Ñc" ─æß╗â tß║ío mß╗¢i.</div></div>`;
+                return;
+            }
+
+            container.innerHTML = list.map(folder => `
+            <div class="col-md-3 col-sm-6">
+                <div class="card file-card p-3 h-100 shadow-sm border-0">
+                    <div class="d-flex align-items-start justify-content-between mb-2">
+                        <i class="bi bi-folder-fill fs-2 text-warning"></i>
+                        <span class="badge text-bg-light text-secondary">${folder.file_count || 0} file</span>
+                    </div>
+                    <div class="fw-semibold text-truncate" title="${escapeHtml(folder.name)}">${escapeHtml(folder.name)}</div>
+                    <div class="small text-secondary mb-3">Cß║¡p nhß║¡t: ${formatDateTime(folder.updated_at)}</div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-primary flex-fill" data-folder-id="${folder.id}" data-folder-name="${escapeHtml(folder.name)}" onclick="openFolder(Number(this.dataset.folderId), this.dataset.folderName)">Mß╗ƒ</button>
+                        <button class="btn btn-sm btn-outline-secondary" data-folder-id="${folder.id}" data-folder-name="${escapeHtml(folder.name)}" onclick="renameFolder(Number(this.dataset.folderId), this.dataset.folderName)"><i class="bi bi-pencil"></i></button>
+                        <button class="btn btn-sm btn-outline-danger" data-folder-id="${folder.id}" data-folder-name="${escapeHtml(folder.name)}" onclick="deleteFolder(Number(this.dataset.folderId), this.dataset.folderName)"><i class="bi bi-trash"></i></button>
+                    </div>
+                </div>
+            </div>`).join("");
         }
 
         async function loadTrashFiles() {
             const container = document.getElementById("fileContainer");
-            container.innerHTML = `<div class="col-12 text-center text-secondary py-4">Đang tải thùng rác...</div>`;
+            container.innerHTML = `<div class="col-12 text-center text-secondary py-4">─Éang tß║úi th├╣ng r├íc...</div>`;
             try {
                 const res = await fetch(`${API_BASE_URL}/files/trash`, { headers: authHeaders() });
                 if (res.status === 401) return logout();
@@ -217,13 +339,13 @@
                 renderTrashFiles(trashFiles);
             } catch (e) {
                 console.error("Load trash error:", e);
-                container.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">Không tải được thùng rác.</div></div>`;
+                container.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">Kh├┤ng tß║úi ─æ╞░ß╗úc th├╣ng r├íc.</div></div>`;
             }
         }
 
         async function loadSharedLinks() {
             const container = document.getElementById("fileContainer");
-            container.innerHTML = `<div class="col-12 text-center text-secondary py-4">Đang tải danh sách link chia sẻ...</div>`;
+            container.innerHTML = `<div class="col-12 text-center text-secondary py-4">─Éang tß║úi danh s├ích link chia sß║╗...</div>`;
             try {
                 const response = await fetch(`${API_BASE_URL}/shared-links`, { headers: authHeaders() });
                 if (response.status === 401) return logout();
@@ -242,14 +364,15 @@
                 renderSharedLinks();
             } catch (error) {
                 console.error("Load shared links error:", error);
-                container.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">Không tải được danh sách link chia sẻ.</div></div>`;
+                container.innerHTML = `<div class="col-12"><div class="alert alert-danger mb-0">Kh├┤ng tß║úi ─æ╞░ß╗úc danh s├ích link chia sß║╗.</div></div>`;
             }
         }
 
         function renderFiles(list) {
             const container = document.getElementById("fileContainer");
             if (!list.length) {
-                container.innerHTML = `<div class="col-12"><div class="alert alert-light border mb-0">Thư mục đang trống. Bấm "Mới" để tạo thư mục hoặc tải tệp.</div></div>`;
+                const emptyMessage = currentFolderId ? "Th╞░ mß╗Ñc n├áy trß╗æng." : "Ch╞░a c├│ tß╗çp n├áo. Bß║Ñm \"Mß╗¢i\" ─æß╗â tß║úi l├¬n.";
+                container.innerHTML = `<div class="col-12"><div class="alert alert-light border mb-0">${emptyMessage}</div></div>`;
                 return;
             }
 
@@ -260,26 +383,23 @@
                         <table class="table table-hover align-middle mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Tên</th>
-                                    <th>Dung lượng</th>
-                                    <th>Cập nhật</th>
-                                    <th class="text-end">Thao tác</th>
+                                    <th>T├¬n tß╗çp</th>
+                                    <th>Dung l╞░ß╗úng</th>
+                                    <th>Cß║¡p nhß║¡t</th>
+                                    <th class="text-end">Thao t├íc</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${list.map(item => `
+                                ${list.map(file => `
                                 <tr>
-                                    <td>
-                                        <i class="bi ${item.type === "folder" ? "bi-folder-fill text-warning" : detectIcon(item.name, item.content_type)} me-2"></i>
-                                        ${item.name}
-                                    </td>
-                                    <td>${item.type === "folder" ? "-" : formatSize(item.size)}</td>
-                                    <td>${formatDateTime(item.updated_at)}</td>
+                                    <td><i class="bi ${detectIcon(file.name, file.content_type)} me-2"></i>${escapeHtml(file.name)}</td>
+                                    <td>${formatSize(file.size)}</td>
+                                    <td>${formatDateTime(file.updated_at)}</td>
                                     <td class="text-end">
-                                        <button class="btn btn-sm btn-outline-primary" onclick="openItem(${item.id}, '${item.type}')">Mở</button>
-                                        ${item.type === "file" ? `<button class="btn btn-sm btn-outline-success" onclick="shareItem(${item.id})">Share</button>` : ""}
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="renameItem(${item.id}, '${item.type}', '${String(item.name).replace(/'/g, "&#39;")}')">Đổi tên</button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id}, '${item.type}')">Xóa</button>
+                                        <button class="btn btn-sm btn-outline-primary" onclick="openItem(${file.id})">Xem</button>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="renameItem(${file.id})">─Éß╗òi t├¬n</button>
+                                        <button class="btn btn-sm btn-outline-success" onclick="shareItem(${file.id})">Share</button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${file.id})">X├│a</button>
                                     </td>
                                 </tr>`).join("")}
                             </tbody>
@@ -289,39 +409,28 @@
                 return;
             }
 
-            container.innerHTML = list.map(item => `
+            container.innerHTML = list.map(file => `
             <div class="col-md-3 mb-4">
                 <div class="card file-card p-3 text-center position-relative">
-                    <i class="bi ${item.type === "folder" ? "bi-folder-fill text-warning" : detectIcon(item.name, item.content_type)} fs-1"></i>
-                    <h6 class="text-truncate" title="${item.name}">${item.name}</h6>
-                    <div class="small text-muted mb-2">${item.type === "folder" ? "Thư mục" : formatSize(item.size)}</div>
+                    <i class="bi ${detectIcon(file.name, file.content_type)} fs-1"></i>
+                    <h6 class="text-truncate" title="${escapeAttr(file.name)}">${escapeHtml(file.name)}</h6>
+                    <div class="small text-muted mb-2">${formatSize(file.size)}</div>
                     <div class="d-flex gap-2">
-                        <button class="btn btn-sm btn-outline-primary w-50" onclick="openItem(${item.id}, '${item.type}')">Mở</button>
-                        ${item.type === "file" ? `<button class="btn btn-sm btn-outline-success w-50" onclick="shareItem(${item.id})">Share</button>` : ""}
-                        <button class="btn btn-sm btn-outline-secondary w-50" onclick="renameItem(${item.id}, '${item.type}', '${String(item.name).replace(/'/g, "&#39;")}')">Đổi tên</button>
-                        <button class="btn btn-sm btn-outline-danger w-50" onclick="deleteItem(${item.id}, '${item.type}')">Xóa</button>
+                        <button class="btn btn-sm btn-outline-primary w-50" onclick="openItem(${file.id})">Xem</button>
+                        <button class="btn btn-sm btn-outline-secondary w-50" onclick="renameItem(${file.id})">─Éß╗òi t├¬n</button>
+                        <button class="btn btn-sm btn-outline-danger w-50" onclick="deleteItem(${file.id})">X├│a</button>
+                    </div>
+                    <div class="d-flex gap-2 mt-2">
+                        <button class="btn btn-sm btn-outline-success w-100" onclick="shareItem(${file.id})">Share</button>
                     </div>
                 </div>
             </div>`).join("");
         }
 
-        function navigateToFolder(folderId, folderName) {
-            currentFolderId = folderId;
-            currentPath.push({ id: folderId, name: folderName });
-            loadFiles();
-        }
-
-        function navigateByBreadcrumb(index) {
-            const target = currentPath[index];
-            currentPath = currentPath.slice(0, index + 1);
-            currentFolderId = target.id;
-            loadFiles();
-        }
-
         function renderTrashFiles(list) {
             const container = document.getElementById("fileContainer");
             if (!list.length) {
-                container.innerHTML = `<div class="col-12"><div class="alert alert-light border mb-0">Thùng rác đang trống.</div></div>`;
+                container.innerHTML = `<div class="col-12"><div class="alert alert-light border mb-0">Th├╣ng r├íc ─æang trß╗æng.</div></div>`;
                 return;
             }
 
@@ -336,8 +445,8 @@
                         <span class="badge text-bg-light text-secondary">${formatSize(file.size)}</span>
                     </div>
                     <div class="d-flex gap-2 mt-3">
-                        <button class="btn btn-primary flex-fill" onclick="restoreFile(${file.id})">Khôi phục</button>
-                        <button class="btn btn-outline-danger flex-fill" onclick="permanentDelete(${file.id})">Xóa vĩnh viễn</button>
+                        <button class="btn btn-primary flex-fill" onclick="restoreFile(${file.id})">Kh├┤i phß╗Ñc</button>
+                        <button class="btn btn-outline-danger flex-fill" onclick="permanentDelete(${file.id})">X├│a v─⌐nh viß╗àn</button>
                     </div>
                 </div>
             </div>`).join("");
@@ -346,7 +455,7 @@
         function renderSharedLinks() {
             const container = document.getElementById("fileContainer");
             if (!sharedLinks.length) {
-                container.innerHTML = `<div class="col-12"><div class="alert alert-light border mb-0">Bạn chưa tạo link chia sẻ nào.</div></div>`;
+                container.innerHTML = `<div class="col-12"><div class="alert alert-light border mb-0">Bß║ín ch╞░a tß║ío link chia sß║╗ n├áo.</div></div>`;
                 return;
             }
 
@@ -357,10 +466,10 @@
                         <thead class="table-light">
                             <tr>
                                 <th>File</th>
-                                <th>Link chia sẻ</th>
-                                <th>Ngày hết hạn</th>
-                                <th>Ngày tạo</th>
-                                <th class="text-end">Thao tác</th>
+                                <th>Link chia sß║╗</th>
+                                <th>Ng├áy hß║┐t hß║ín</th>
+                                <th>Ng├áy tß║ío</th>
+                                <th class="text-end">Thao t├íc</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -368,9 +477,9 @@
                             <tr>
                                 <td><div class="fw-semibold">${link.fileName}</div><div class="small text-secondary">${formatSize(link.fileSize)}</div></td>
                                 <td><a href="${link.shareLink}" target="_blank" rel="noreferrer">${link.shareLink}</a></td>
-                                <td>${link.expiresAt ? formatDateTime(link.expiresAt) : "Không hết hạn"}${link.isExpired ? " <span class='badge text-bg-danger ms-1'>Hết hạn</span>" : ""}</td>
+                                <td>${link.expiresAt ? formatDateTime(link.expiresAt) : "Kh├┤ng hß║┐t hß║ín"}${link.isExpired ? " <span class='badge text-bg-danger ms-1'>Hß║┐t hß║ín</span>" : ""}</td>
                                 <td>${formatDateTime(link.createdAt)}</td>
-                                <td class="text-end"><button class="btn btn-outline-danger btn-sm" onclick="revokeLink(${link.id})">Thu hồi</button></td>
+                                <td class="text-end"><button class="btn btn-outline-danger btn-sm" onclick="revokeLink(${link.id})">Thu hß╗ôi</button></td>
                             </tr>`).join("")}
                         </tbody>
                     </table>
@@ -399,84 +508,36 @@
             if (trashBtn) trashBtn.classList.toggle("active", currentSection === "trash");
 
             if (title) {
-                if (currentSection === "files") title.textContent = "Tệp và thư mục";
-                if (currentSection === "shared") title.textContent = "Đã chia sẻ";
-                if (currentSection === "trash") title.textContent = "Thùng rác";
+                if (currentSection === "files") title.textContent = "Tß╗çp cß╗ºa t├┤i";
+                if (currentSection === "shared") title.textContent = "─É├ú chia sß║╗";
+                if (currentSection === "trash") title.textContent = "Th├╣ng r├íc";
             }
 
-            const breadcrumb = document.getElementById("breadcrumb");
-            if (breadcrumb) {
-                if (currentSection !== "files") {
-                    breadcrumb.innerHTML = `<li class="breadcrumb-item active">Trang chủ</li>`;
-                } else {
-                    breadcrumb.innerHTML = currentPath
-                        .map((node, idx) => {
-                            if (idx === currentPath.length - 1) {
-                                return `<li class="breadcrumb-item active">${node.name}</li>`;
-                            }
-                            return `<li class="breadcrumb-item"><a href="#" onclick="event.preventDefault(); navigateByBreadcrumb(${idx})">${node.name}</a></li>`;
-                        })
-                        .join("");
-                }
-            }
+            renderBreadcrumb();
         }
 
         async function renderActiveSection() {
             if (currentSection === "shared") return loadSharedLinks();
             if (currentSection === "trash") return loadTrashFiles();
-            return loadFiles();
+            return refreshFilesSection();
         }
 
         async function switchSection(section) {
             currentSection = section;
-            if (section === "files") {
-                currentFolderId = null;
-                currentPath = [{ id: null, name: "Trang chủ" }];
-            }
             setActiveNav();
             await renderActiveSection();
         }
 
-        async function deleteItem(id, type) {
+        async function deleteItem(id) {
+            if (!confirm("Chuyß╗ân file v├áo th├╣ng r├íc?")) return;
             try {
-                let res;
-                if (type === "folder") {
-                    if (!confirm("Xóa thư mục này và toàn bộ nội dung bên trong?")) return;
-                    res = await fetch(`${API_BASE_URL}/files/folders/${id}`, { method: "DELETE", headers: authHeaders() });
-                } else {
-                    if (!confirm("Chuyển file vào thùng rác?")) return;
-                    res = await fetch(`${API_BASE_URL}/files/${id}`, { method: "DELETE", headers: authHeaders() });
-                }
+                const res = await fetch(`${API_BASE_URL}/files/${id}`, { method: "DELETE", headers: authHeaders() });
                 if (res.status === 401) return logout();
-                if (!res.ok) throw new Error("Xóa thất bại");
+                if (!res.ok) throw new Error("X├│a file thß║Ñt bß║íi");
                 await loadFiles();
                 await loadQuota();
             } catch (e) {
-                alert(e.message || "Xóa thất bại");
-            }
-        }
-
-        async function renameItem(id, type, oldName) {
-            const newName = prompt("Nhập tên mới:", oldName || "");
-            if (!newName || !newName.trim()) return;
-
-            try {
-                const url = type === "folder"
-                    ? `${API_BASE_URL}/files/folders/${id}/rename`
-                    : `${API_BASE_URL}/files/${id}/rename`;
-                const res = await fetch(url, {
-                    method: "PATCH",
-                    headers: {
-                        ...authHeaders(),
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ new_name: newName.trim() }),
-                });
-                if (res.status === 401) return logout();
-                if (!res.ok) throw new Error("Đổi tên thất bại");
-                await loadFiles();
-            } catch (e) {
-                alert(e.message || "Đổi tên thất bại");
+                alert(e.message || "X├│a file thß║Ñt bß║íi");
             }
         }
 
@@ -523,19 +584,19 @@
                 let selectedExpiry = null;
                 if (!noExpiryInput.checked) {
                     if (!expiryInput.value) {
-                        alert("Vui lòng chọn ngày giờ hết hạn hoặc tick 'Không đặt thời hạn'.");
+                        alert("Vui l├▓ng chß╗ìn ng├áy giß╗¥ hß║┐t hß║ín hoß║╖c tick 'Kh├┤ng ─æß║╖t thß╗¥i hß║ín'.");
                         return;
                     }
 
                     selectedExpiry = new Date(expiryInput.value);
                     if (Number.isNaN(selectedExpiry.getTime())) {
-                        alert("Ngày giờ hết hạn không hợp lệ.");
+                        alert("Ng├áy giß╗¥ hß║┐t hß║ín kh├┤ng hß╗úp lß╗ç.");
                         return;
                     }
 
                     const now = new Date();
                     if (selectedExpiry <= now) {
-                        alert("Ngày giờ hết hạn phải lớn hơn thời điểm hiện tại.");
+                        alert("Ng├áy giß╗¥ hß║┐t hß║ín phß║úi lß╗¢n h╞ín thß╗¥i ─æiß╗âm hiß╗çn tß║íi.");
                         return;
                     }
 
@@ -560,7 +621,7 @@
                 if (res.status === 401) return logout();
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
-                    throw new Error(err?.detail || "Tạo link share thất bại");
+                    throw new Error(err?.detail || "Tß║ío link share thß║Ñt bß║íi");
                 }
 
                 const data = await res.json();
@@ -570,14 +631,14 @@
                     await navigator.clipboard.writeText(shareLink);
                 } catch { }
 
-                const expiryText = data.expires_at ? formatDateTime(data.expires_at) : "Không đặt hạn";
-                alert(`Đã tạo link share.\nHết hạn: ${expiryText}\n${shareLink}`);
+                const expiryText = data.expires_at ? formatDateTime(data.expires_at) : "Kh├┤ng ─æß║╖t hß║ín";
+                alert(`─É├ú tß║ío link share.\nHß║┐t hß║ín: ${expiryText}\n${shareLink}`);
 
                 if (selectedExpiry && data.expires_at) {
                     const selectedKey = toMinuteKey(expiryInput.value);
                     const serverKey = toMinuteKey(data.expires_at);
                     if (selectedKey && serverKey && selectedKey !== serverKey) {
-                        alert(`Cảnh báo: thời gian hết hạn server trả về lệch so với thời gian bạn chọn.\nBạn chọn: ${selectedKey}\nServer trả về: ${serverKey}`);
+                        alert(`Cß║únh b├ío: thß╗¥i gian hß║┐t hß║ín server trß║ú vß╗ü lß╗çch so vß╗¢i thß╗¥i gian bß║ín chß╗ìn.\nBß║ín chß╗ìn: ${selectedKey}\nServer trß║ú vß╗ü: ${serverKey}`);
                     }
                 }
 
@@ -586,7 +647,7 @@
                     await loadSharedLinks();
                 }
             } catch (error) {
-                alert(error.message || "Tạo link share thất bại");
+                alert(error.message || "Tß║ío link share thß║Ñt bß║íi");
             }
         }
 
@@ -594,72 +655,209 @@
             try {
                 const res = await fetch(`${API_BASE_URL}/files/${id}/restore`, { method: "POST", headers: authHeaders() });
                 if (res.status === 401) return logout();
-                if (!res.ok) throw new Error("Khôi phục file thất bại");
+                if (!res.ok) throw new Error("Kh├┤i phß╗Ñc file thß║Ñt bß║íi");
                 await loadTrashFiles();
             } catch (e) {
-                alert(e.message || "Khôi phục thất bại");
+                alert(e.message || "Kh├┤i phß╗Ñc thß║Ñt bß║íi");
             }
         }
 
         async function permanentDelete(id) {
-            if (!confirm("Xóa vĩnh viễn file này?")) return;
+            if (!confirm("X├│a v─⌐nh viß╗àn file n├áy?")) return;
             try {
                 const res = await fetch(`${API_BASE_URL}/files/${id}/permanent`, { method: "DELETE", headers: authHeaders() });
                 if (res.status === 401) return logout();
-                if (!res.ok) throw new Error("Xóa vĩnh viễn thất bại");
+                if (!res.ok) throw new Error("X├│a v─⌐nh viß╗àn thß║Ñt bß║íi");
                 await loadTrashFiles();
                 await loadQuota();
             } catch (e) {
-                alert(e.message || "Xóa vĩnh viễn thất bại");
+                alert(e.message || "X├│a v─⌐nh viß╗àn thß║Ñt bß║íi");
             }
         }
 
         async function revokeLink(id) {
-            if (!confirm("Bạn có chắc muốn thu hồi link chia sẻ này?")) return;
+            if (!confirm("Bß║ín c├│ chß║»c muß╗æn thu hß╗ôi link chia sß║╗ n├áy?")) return;
             try {
                 const response = await fetch(`${API_BASE_URL}/shared-links/${id}`, { method: "DELETE", headers: authHeaders() });
                 if (response.status === 401) return logout();
-                if (!response.ok) throw new Error("Thu hồi link thất bại");
+                if (!response.ok) throw new Error("Thu hß╗ôi link thß║Ñt bß║íi");
                 await loadSharedLinks();
             } catch (error) {
-                alert(error.message || "Thu hồi link thất bại");
+                alert(error.message || "Thu hß╗ôi link thß║Ñt bß║íi");
             }
         }
 
-        async function openItem(id, type) {
-            const item = files.find(fileItem => fileItem.id === id);
-            if (!item) return;
-
-            if (type === "folder") {
-                navigateToFolder(id, item.name);
-                return;
-            }
-
-            if ((item.content_type || "").startsWith("image/") || item.content_type === "text/plain" || item.content_type === "application/pdf") {
-                globalThis.open(`${API_BASE_URL}/files/${id}/preview`, "_blank");
-                return;
-            }
-
-            globalThis.open(item.blob_url, "_blank");
+        function openItem(id) {
+            const file = files.find(item => item.id === id);
+            if (!file) return;
+            openPreview(file);
         }
 
-        async function searchFile() {
+        function getDownloadUrl(file) {
+            if (!file?.blob_url) return "";
+            return file.blob_url.includes("?") ? `${file.blob_url}&download=1` : `${file.blob_url}?download=1`;
+        }
+
+        function openPreview(file) {
+            currentPreviewFile = file;
+            const previewLabel = document.getElementById("previewModalLabel");
+            const previewContainer = document.getElementById("previewContainer");
+            const openPreviewTabBtn = document.getElementById("openPreviewTabBtn");
+            const downloadPreviewBtn = document.getElementById("downloadPreviewBtn");
+
+            if (!previewLabel || !previewContainer || !openPreviewTabBtn || !downloadPreviewBtn) return;
+
+            previewLabel.textContent = file.name;
+            const isImage = (file.content_type || "").startsWith("image/");
+            const src = file.blob_url;
+
+            previewContainer.innerHTML = isImage
+                ? `<img src="${src}" alt="${escapeAttr(file.name)}" style="max-width: 100%; max-height: 75vh; object-fit: contain;">`
+                : `<iframe src="${src}" title="${escapeAttr(file.name)}" style="width: 100%; height: 75vh; border: 0;"></iframe>`;
+
+            openPreviewTabBtn.onclick = () => window.open(src, "_blank", "noreferrer");
+            downloadPreviewBtn.onclick = () => window.open(getDownloadUrl(file), "_blank", "noreferrer");
+
+            previewModal.show();
+        }
+
+        async function renameItem(id) {
+            const file = files.find(item => item.id === id);
+            if (!file) return;
+
+            const nextName = prompt("Nhß║¡p t├¬n file mß╗¢i", file.name);
+            const normalizedName = nextName?.trim();
+            if (!normalizedName || normalizedName === file.name) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/files/${id}`, {
+                    method: "PATCH",
+                    headers: {
+                        ...authHeaders(),
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ name: normalizedName }),
+                });
+
+                if (response.status === 401) return logout();
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err?.detail || "─Éß╗òi t├¬n file thß║Ñt bß║íi");
+                }
+
+                await refreshFilesSection();
+                if (currentSection === "files") {
+                    await loadQuota();
+                }
+            } catch (error) {
+                alert(error.message || "─Éß╗òi t├¬n file thß║Ñt bß║íi");
+            }
+        }
+
+        function openFolder(folderId, folderName) {
+            currentFolderId = folderId;
+            currentPath = [...currentPath, { id: folderId, name: folderName }];
+            refreshFilesSection();
+        }
+
+        async function openCreateFolderModal() {
+            const folderName = prompt("Nhß║¡p t├¬n th╞░ mß╗Ñc mß╗¢i");
+            const normalizedFolderName = folderName?.trim();
+            if (!normalizedFolderName) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/folders`, {
+                    method: "POST",
+                    headers: {
+                        ...authHeaders(),
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ name: normalizedFolderName, parent_id: currentFolderId }),
+                });
+
+                if (response.status === 401) return logout();
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err?.detail || "Tß║ío th╞░ mß╗Ñc thß║Ñt bß║íi");
+                }
+
+                await loadFolders();
+            } catch (error) {
+                alert(error.message || "Tß║ío th╞░ mß╗Ñc thß║Ñt bß║íi");
+            }
+        }
+
+        async function renameFolder(folderId, currentName) {
+            const folderName = prompt("Nhß║¡p t├¬n th╞░ mß╗Ñc mß╗¢i", currentName);
+            const normalizedFolderName = folderName?.trim();
+            if (!normalizedFolderName || normalizedFolderName === currentName) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/folders/${folderId}`, {
+                    method: "PATCH",
+                    headers: {
+                        ...authHeaders(),
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ name: normalizedFolderName }),
+                });
+
+                if (response.status === 401) return logout();
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err?.detail || "─Éß╗òi t├¬n th╞░ mß╗Ñc thß║Ñt bß║íi");
+                }
+
+                const updatedFolder = await response.json();
+                if (currentPath.length > 1 && currentPath[1]?.id === folderId) {
+                    currentPath[1].name = updatedFolder.name;
+                    renderBreadcrumb();
+                }
+                await loadFolders();
+            } catch (error) {
+                alert(error.message || "─Éß╗òi t├¬n th╞░ mß╗Ñc thß║Ñt bß║íi");
+            }
+        }
+
+        async function deleteFolder(folderId, folderName) {
+            if (!confirm(`X├│a th╞░ mß╗Ñc "${folderName}"?`)) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/folders/${folderId}`, {
+                    method: "DELETE",
+                    headers: authHeaders(),
+                });
+
+                if (response.status === 401) return logout();
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err?.detail || "X├│a th╞░ mß╗Ñc thß║Ñt bß║íi");
+                }
+
+                if (currentFolderId === folderId) {
+                    goToPath(Math.max(0, currentPath.length - 2));
+                } else {
+                    await loadFolders();
+                }
+            } catch (error) {
+                alert(error.message || "X├│a th╞░ mß╗Ñc thß║Ñt bß║íi");
+            }
+        }
+
+        function searchFile() {
             const key = (document.getElementById("searchInput")?.value || "").trim().toLowerCase();
             if (currentSection === "files") {
                 if (!key) {
-                    await loadFiles();
+                    renderFolders(folders);
+                    renderFiles(files);
                     return;
                 }
-                try {
-                    const res = await fetch(`${API_BASE_URL}/files/search?q=${encodeURIComponent(key)}`, { headers: authHeaders() });
-                    if (res.status === 401) return logout();
-                    if (!res.ok) throw new Error("Tìm kiếm thất bại");
-                    const data = await res.json();
-                    files = Array.isArray(data) ? data : [];
-                    renderFiles(files);
-                } catch (e) {
-                    alert(e.message || "Tìm kiếm thất bại");
+
+                if (!currentFolderId) {
+                    renderFolders(folders.filter(folder => folder.name.toLowerCase().includes(key)));
                 }
+
+                renderFiles(files.filter(file => file.name.toLowerCase().includes(key)));
                 return;
             }
             if (currentSection === "trash") {
@@ -669,42 +867,7 @@
         }
 
         function openCreateModal() {
-            if (currentSection !== "files") {
-                alert("Chỉ có thể tạo mới trong mục Tệp của tôi.");
-                return;
-            }
-
-            const createFolder = confirm("Nhấn OK để tạo thư mục mới. Nhấn Cancel để tải tệp lên.");
-            if (createFolder) {
-                createFolderItem();
-            } else {
-                document.getElementById("realUploadInput").click();
-            }
-        }
-
-        async function createFolderItem() {
-            const folderName = prompt("Nhập tên thư mục mới:");
-            if (!folderName || !folderName.trim()) return;
-
-            try {
-                const res = await fetch(`${API_BASE_URL}/files/folders`, {
-                    method: "POST",
-                    headers: {
-                        ...authHeaders(),
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ name: folderName.trim(), folder_id: currentFolderId }),
-                });
-                if (res.status === 401) return logout();
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    throw new Error(err?.detail || "Tạo thư mục thất bại");
-                }
-
-                await loadFiles();
-            } catch (e) {
-                alert(e.message || "Tạo thư mục thất bại");
-            }
+            document.getElementById("realUploadInput").click();
         }
 
         async function uploadSelectedFiles(event) {
@@ -714,9 +877,7 @@
             for (const file of selectedFiles) {
                 const formData = new FormData();
                 formData.append("file", file);
-                if (currentFolderId !== null) {
-                    formData.append("folder_id", String(currentFolderId));
-                }
+                if (currentFolderId) formData.append("folder_id", String(currentFolderId));
                 const res = await fetch(`${API_BASE_URL}/files/upload`, {
                     method: "POST",
                     headers: authHeaders(),
@@ -730,7 +891,7 @@
 
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
-                    alert(err?.detail || `Upload thất bại: ${file.name}`);
+                    alert(err?.detail || `Upload thß║Ñt bß║íi: ${file.name}`);
                 }
             }
 
@@ -740,11 +901,11 @@
         }
 
         function openUpdateProfileModal() {
-            alert("Chức năng hồ sơ đang được hoàn thiện.");
+            alert("Chß╗⌐c n─âng hß╗ô s╞í ─æang ─æ╞░ß╗úc ho├án thiß╗çn.");
         }
 
         function openChangePasswordModal() {
-            alert("Bạn có thể đổi mật khẩu ở API /auth/change-password.");
+            alert("Bß║ín c├│ thß╗â ─æß╗òi mß║¡t khß║⌐u ß╗ƒ API /auth/change-password.");
         }
 
         document.getElementById("gridBtn").onclick = () => {
@@ -767,6 +928,7 @@
         document.addEventListener("DOMContentLoaded", async () => {
             if (!ensureAuth()) return;
             shareExpiryModal = new bootstrap.Modal(document.getElementById("shareExpiryModal"));
+            previewModal = new bootstrap.Modal(document.getElementById("previewModal"));
             await loadQuota();
             const sectionFromQuery = new URLSearchParams(globalThis.location.search).get("section");
             const allowedSections = ["files", "shared", "trash"];

@@ -4,11 +4,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File as FastAPIFile, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.database import get_db
 from app.routes.auth import get_current_user
+from app.routes.folders import get_owned_folder_or_404
 
 router = APIRouter(prefix="/files", tags=["Quan ly file"])
 
@@ -53,37 +55,43 @@ def _to_folder_item(folder_obj: models.Folder) -> schemas.FolderItemResponse:
     )
 
 
-@router.get("/list", response_model=schemas.ItemListResponse)
-def list_files(
-    folder_id: Annotated[int | None, Query()] = None,
-    db: Annotated[Session, Depends(get_db)] = None,
-    current_user: Annotated[models.User, Depends(get_current_user)] = None,
-):
-    # Lấy folders
-    folders = (
-        db.query(models.Folder)
-        .filter(
-            models.Folder.owner_id == current_user.id,
-            models.Folder.folder_id == folder_id
-        )
-        .order_by(models.Folder.updated_at.desc())
-        .all()
-    )
-    
-    # Lấy files
-    files = (
+def _ensure_unique_file_name(
+    db: Session,
+    current_user: models.User,
+    folder_id: int | None,
+    file_name: str,
+    exclude_file_id: int | None = None,
+) -> None:
+    query = (
         db.query(models.File)
         .filter(
             models.File.owner_id == current_user.id,
-            models.File.folder_id == folder_id,
-            models.File.is_deleted.is_(False)
+            models.File.is_deleted.is_(False),
+            models.File.folder_id.is_(folder_id) if folder_id is None else models.File.folder_id == folder_id,
+            func.lower(models.File.name) == file_name.lower(),
         )
-        .order_by(models.File.updated_at.desc())
-        .all()
     )
-    
-    items = [_to_folder_item(f) for f in folders] + [_to_file_item(f) for f in files]
-    return {"items": items}
+    if exclude_file_id is not None:
+        query = query.filter(models.File.id != exclude_file_id)
+    if query.first():
+        raise HTTPException(status_code=400, detail="Ten file da ton tai trong thu muc nay")
+
+
+@router.get("/list", response_model=schemas.FileListResponse)
+def list_files(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[models.User, Depends(get_current_user)],
+    folder_id: Annotated[int | None, Query(description="Id thu muc")] = None,
+):
+    file_query = db.query(models.File).filter(models.File.owner_id == current_user.id, models.File.is_deleted.is_(False))
+    if folder_id is None:
+        file_query = file_query.filter(models.File.folder_id.is_(None))
+    else:
+        get_owned_folder_or_404(db, current_user, folder_id)
+        file_query = file_query.filter(models.File.folder_id == folder_id)
+
+    items = file_query.order_by(models.File.updated_at.desc()).all()
+    return {"items": [_to_file_item(item) for item in items]}
 
 
 @router.get("/trash", response_model=schemas.FileListResponse)
@@ -133,9 +141,9 @@ def create_folder(
 @router.post("/upload", response_model=schemas.FileItemResponse, status_code=status.HTTP_201_CREATED)
 async def upload_file(
     file: Annotated[UploadFile, FastAPIFile(...)],
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[models.User, Depends(get_current_user)],
     folder_id: Annotated[int | None, Form()] = None,
-    db: Annotated[Session, Depends(get_db)] = None,
-    current_user: Annotated[models.User, Depends(get_current_user)] = None,
 ):
     # Kiểm tra folder tồn tại
     if folder_id:
@@ -156,6 +164,11 @@ async def upload_file(
 
     if current_user.used_storage + size_bytes > current_user.max_storage:
         raise HTTPException(status_code=400, detail="Khong du dung luong de tai len file")
+
+    if folder_id is not None:
+        get_owned_folder_or_404(db, current_user, folder_id)
+
+    _ensure_unique_file_name(db, current_user, folder_id, safe_name)
 
     new_file = models.File(
         name=safe_name,
@@ -184,6 +197,33 @@ async def upload_file(
         if saved_path.exists():
             saved_path.unlink(missing_ok=True)
         raise HTTPException(status_code=500, detail=f"Khong the tai file len: {exc}")
+
+
+@router.patch("/{file_id}", response_model=schemas.FileItemResponse)
+def rename_file(
+    file_id: int,
+    payload: schemas.FileRenameRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[models.User, Depends(get_current_user)],
+):
+    file_obj = (
+        db.query(models.File)
+        .filter(models.File.id == file_id, models.File.owner_id == current_user.id, models.File.is_deleted.is_(False))
+        .first()
+    )
+    if not file_obj:
+        raise HTTPException(status_code=404, detail="Khong tim thay file")
+
+    new_name = Path(payload.name or "").name.strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Ten file khong duoc de trong")
+
+    _ensure_unique_file_name(db, current_user, file_obj.folder_id, new_name, exclude_file_id=file_obj.id)
+
+    file_obj.name = new_name
+    db.commit()
+    db.refresh(file_obj)
+    return _to_file_item(file_obj)
 
 
 @router.delete("/{file_id}", response_model=schemas.FileActionResponse)

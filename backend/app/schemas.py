@@ -106,8 +106,21 @@ class FileActionResponse(BaseModel):
     message: str
 
 
+class FolderItemResponse(BaseModel):
+    id: int
+    name: str
+    created_at: datetime
+    updated_at: datetime
+    type: str = "folder"
+
+
+class ItemListResponse(BaseModel):
+    items: list[FileItemResponse | FolderItemResponse]
+
+
 class FolderCreateRequest(BaseModel):
     name: str
+    parent_id: Optional[int] = None
     folder_id: Optional[int] = None
 
 
@@ -122,3 +135,33 @@ class SearchResultResponse(BaseModel):
     size: Optional[int] = None
     created_at: datetime
     updated_at: datetime
+
+
+class FileRenameRequest(BaseModel):
+    name: str
+
+
+class FolderRenameRequest(BaseModel):
+    name: str
+
+
+class FolderResponse(BaseModel):
+    id: int
+    name: str
+    owner_id: int
+    parent_id: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+    file_count: int = 0
+    type: str = "folder"
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FolderListResponse(BaseModel):
+    items: list[FolderResponse]
+
+
+class FolderActionResponse(BaseModel):
+    success: bool
+    message: str
