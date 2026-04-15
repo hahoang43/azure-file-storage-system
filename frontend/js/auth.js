@@ -25,7 +25,8 @@ document.getElementById('registerForm').addEventListener('submit', async functio
             body: JSON.stringify({
                 username: username,
                 email: email,
-                password: password
+                password: password,
+                // display_name: display_name
             })
         });
 
@@ -43,7 +44,10 @@ document.getElementById('registerForm').addEventListener('submit', async functio
             // Chuyển sang tab Đăng nhập
             showTab(true);
             // Tự động điền sẵn tên đăng nhập cho tiện
-            document.getElementById('login-username').value = username;
+            const loginUsernameInput = document.getElementById('login-username');
+            if (loginUsernameInput) {
+                loginUsernameInput.value = username;
+            }
             document.getElementById('registerForm').reset();
         } else {
             errorDiv.textContent = data.detail || "Đăng ký thất bại!";
@@ -59,18 +63,18 @@ document.getElementById('registerForm').addEventListener('submit', async functio
 document.getElementById('loginForm').addEventListener('submit', async function (e) {
     e.preventDefault();
 
-    const username = document.getElementById('login-username').value;
+    const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
     const errorDiv = document.getElementById('login-error');
 
-    errorDiv.textContent = ''; // Xóa lỗi cũ
+    errorDiv.textContent = '';
 
     try {
         const response = await fetch(`${API_URL}/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                username: username,
+                email: email,
                 password: password
             })
         });
@@ -101,7 +105,7 @@ document.getElementById('loginForm').addEventListener('submit', async function (
         console.error("Lỗi:", error);
     }
 });
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", function () {
     const token = localStorage.getItem("mycloud_token");
     const currentPath = window.location.pathname;
 
@@ -109,7 +113,7 @@ document.addEventListener("DOMContentLoaded", function() {
     // -> Lập tức đẩy họ về trang chủ (index.html)
     if (token && (currentPath.includes("auth.html") || currentPath.endsWith("/"))) {
         // Tạm thời đẩy về index.html. Sau này bạn code xong trang quản lý file thì đổi thành dashboard.html nhé!
-        if(currentPath.includes("auth.html")) {
+        if (currentPath.includes("auth.html")) {
             window.location.href = "index.html";
         }
     }

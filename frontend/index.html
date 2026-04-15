@@ -14,8 +14,57 @@
     <link rel="stylesheet" href="components/topbar.css">
 
 </head>
+
 <body>
-    
+    <!-- Modal đổi tên đăng nhập -->
+    <div class="modal fade" id="changeUsernameModal" tabindex="-1" aria-labelledby="changeUsernameModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="changeUsernameModalLabel">Đổi tên đăng nhập</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="changeUsernameForm">
+                        <div class="mb-3">
+                            <label for="newUsername" class="form-label">Tên đăng nhập mới</label>
+                            <input type="text" class="form-control" id="newUsername" required>
+                        </div>
+                        <div id="changeUsernameMessage" class="mb-2"></div>
+                        <button type="submit" class="btn btn-primary w-100">Đổi tên đăng nhập</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Modal tạo thư mục mới -->
+    <div id="create-folder-modal-container"></div>
+
+    <!-- Modal đổi tên thư mục -->
+    <div class="modal fade" id="renameFolderModal" tabindex="-1" aria-labelledby="renameFolderModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="renameFolderModalLabel">Đổi tên thư mục</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="renameFolderForm">
+                        <div class="mb-3">
+                            <label for="renameFolderNewName" class="form-label">Tên mới</label>
+                            <input type="text" class="form-control" id="renameFolderNewName" required>
+                        </div>
+                        <div id="renameFolderMessage" class="mb-2"></div>
+                        <button type="submit" class="btn btn-primary w-100">Đổi tên</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="container-fluid p-0">
         <div class="row g-0">
@@ -32,13 +81,16 @@
                         </div>
                         <div class="col-md-4 col-12 d-flex justify-content-end align-items-center gap-2">
                             <div class="btn-group shadow-sm bg-white rounded border" id="sectionSwitcher">
-                                <button id="filesSectionBtn" class="btn btn-light btn-sm active border-0 px-3" onclick="switchSection('files')">
+                                <button id="filesSectionBtn" class="btn btn-light btn-sm active border-0 px-3"
+                                    onclick="switchSection('files')">
                                     <i class="bi bi-folder2-open"></i>
                                 </button>
-                                <button id="sharedSectionBtn" class="btn btn-light btn-sm border-0 px-3" onclick="switchSection('shared')">
+                                <button id="sharedSectionBtn" class="btn btn-light btn-sm border-0 px-3"
+                                    onclick="switchSection('shared')">
                                     <i class="bi bi-share"></i>
                                 </button>
-                                <button id="trashSectionBtn" class="btn btn-light btn-sm border-0 px-3" onclick="switchSection('trash')">
+                                <button id="trashSectionBtn" class="btn btn-light btn-sm border-0 px-3"
+                                    onclick="switchSection('trash')">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </div>
@@ -55,9 +107,9 @@
             </div>
         </div>
     </div>
-    <input id="realUploadInput" type="file" multiple class="d-none">
 
-    <div class="modal fade" id="shareExpiryModal" tabindex="-1" aria-labelledby="shareExpiryModalLabel" aria-hidden="true">
+    <div class="modal fade" id="shareExpiryModal" tabindex="-1" aria-labelledby="shareExpiryModalLabel"
+        aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
@@ -82,7 +134,46 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal đổi mật khẩu -->
+    <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="changePasswordModalLabel">Đổi mật khẩu</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="changePasswordForm">
+                        <div class="mb-3">
+                            <label for="oldPassword" class="form-label">Mật khẩu cũ</label>
+                            <input type="password" class="form-control" id="oldPassword" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="newPassword" class="form-label">Mật khẩu mới</label>
+                            <input type="password" class="form-control" id="newPassword" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirmPassword" class="form-label">Xác nhận mật khẩu mới</label>
+                            <input type="password" class="form-control" id="confirmPassword" required>
+                        </div>
+                        <div id="changePasswordMessage" class="mb-2"></div>
+                        <button type="submit" class="btn btn-primary w-100">Đổi mật khẩu</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
     <script>
+
+        // Hàm mở modal tạo thư mục
+        function openCreateFolderModal() {
+            const modal = new bootstrap.Modal(document.getElementById('createFolderModal'));
+            document.getElementById('createFolderForm').reset();
+            document.getElementById('createFolderMessage').textContent = '';
+            modal.show();
+        }
         const API_BASE_URL = "http://127.0.0.1:8000";
         // Tải component sidebar và topbar vào index.html, sau đó mới chạy các script phụ thuộc DOM
         globalThis.addEventListener('DOMContentLoaded', function () {
@@ -92,26 +183,66 @@
                 }),
                 fetch('components/topbar.html').then(r => r.text()).then(html => {
                     document.getElementById('topbar-container').innerHTML = html;
+                }),
+                fetch('create_folder_modal.html').then(r => r.text()).then(html => {
+                    document.getElementById('create-folder-modal-container').innerHTML = html;
                 })
             ]).then(() => {
-                // Sau khi đã render xong sidebar/topbar, mới chạy các script phụ thuộc DOM
+                // Sau khi đã render xong sidebar/topbar/modal, mới chạy các script phụ thuộc DOM
                 if (typeof setActiveNav === 'function') setActiveNav();
                 if (typeof loadQuota === 'function') loadQuota();
 
-                // Hiển thị tên người dùng từ localStorage (username)
-                let username = localStorage.getItem("mycloud_username");
-                if (!username) {
-                    // Nếu không có, thử lấy từ token (nếu token là JWT chuẩn)
-                    const token = localStorage.getItem("mycloud_token");
-                    if (token) {
+                // Hiển thị tên đăng nhập từ API (username)
+                fetch(`${API_BASE_URL}/auth/me`, { headers: authHeaders() })
+                    .then(res => res.json())
+                    .then(user => {
+                        if (user.username && document.getElementById("userDisplay")) {
+                            document.getElementById("userDisplay").textContent = user.username;
+                        }
+                    });
+
+                // Xử lý tạo thư mục mới
+                const createFolderForm = document.getElementById('createFolderForm');
+                if (createFolderForm) {
+                    createFolderForm.addEventListener('submit', async function (e) {
+                        e.preventDefault();
+                        const folderName = document.getElementById('folderName').value.trim();
+                        const messageDiv = document.getElementById('createFolderMessage');
+                        if (!folderName) {
+                            messageDiv.textContent = 'Vui lòng nhập tên thư mục!';
+                            messageDiv.style.color = 'red';
+                            return;
+                        }
                         try {
-                            const payload = JSON.parse(atob(token.split('.')[1]));
-                            username = payload.sub || payload.username || payload.name;
-                        } catch { }
-                    }
-                }
-                if (username && document.getElementById("userDisplay")) {
-                    document.getElementById("userDisplay").textContent = username;
+                            const token = localStorage.getItem('mycloud_token');
+                            const res = await fetch('http://127.0.0.1:8000/folders/create', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${token}`
+                                },
+                                body: JSON.stringify({ name: folderName })
+                            });
+                            const data = await res.json();
+                            if (res.ok) {
+                                messageDiv.textContent = 'Tạo thư mục thành công!';
+                                messageDiv.style.color = 'green';
+                                createFolderForm.reset();
+                                // Đóng modal sau 1s và reload file list
+                                setTimeout(() => {
+                                    const modal = bootstrap.Modal.getInstance(document.getElementById('createFolderModal'));
+                                    if (modal) modal.hide();
+                                    if (typeof loadFiles === 'function') loadFiles();
+                                }, 1000);
+                            } else {
+                                messageDiv.textContent = data.detail || 'Tạo thư mục thất bại!';
+                                messageDiv.style.color = 'red';
+                            }
+                        } catch (error) {
+                            messageDiv.textContent = 'Lỗi kết nối đến máy chủ!';
+                            messageDiv.style.color = 'red';
+                        }
+                    });
                 }
             });
         });
@@ -122,6 +253,8 @@
 
     <script>
         let files = [];
+        let currentFolderId = null;
+        let currentPath = [{ id: null, name: "Home" }];
         let trashFiles = [];
         let sharedLinks = [];
         let currentSection = "files";
@@ -189,11 +322,29 @@
             const container = document.getElementById("fileContainer");
             container.innerHTML = `<div class="col-12 text-center text-secondary py-4">Đang tải tệp...</div>`;
             try {
-                const res = await fetch(`${API_BASE_URL}/files/list`, { headers: authHeaders() });
-                if (res.status === 401) return logout();
-                if (!res.ok) throw new Error(`Load files failed: ${res.status}`);
-                const payload = await res.json();
-                files = Array.isArray(payload?.items) ? payload.items : [];
+                // Lấy thư mục
+                const folderRes = await fetch(`${API_BASE_URL}/folders/contents`, { headers: authHeaders() });
+                if (folderRes.status === 401) return logout();
+                if (!folderRes.ok) throw new Error(`Load folders failed: ${folderRes.status}`);
+                const folderPayload = await folderRes.json();
+                const folders = Array.isArray(folderPayload?.folders) ? folderPayload.folders.map(f => ({
+                    ...f,
+                    type: "folder",
+                    size: 0,
+                    content_type: "folder"
+                })) : [];
+
+                // Lấy file
+                const fileRes = await fetch(`${API_BASE_URL}/files/list`, { headers: authHeaders() });
+                if (fileRes.status === 401) return logout();
+                if (!fileRes.ok) throw new Error(`Load files failed: ${fileRes.status}`);
+                const filePayload = await fileRes.json();
+                const fileItems = Array.isArray(filePayload?.items) ? filePayload.items.map(f => ({
+                    ...f,
+                    type: "file"
+                })) : [];
+
+                files = [...folders, ...fileItems];
                 renderFiles(files);
             } catch (e) {
                 console.error("Load files error:", e);
@@ -269,8 +420,11 @@
                                     <td>${formatSize(file.size)}</td>
                                     <td>${formatDateTime(file.updated_at)}</td>
                                     <td class="text-end">
-                                        <button class="btn btn-sm btn-outline-primary" onclick="openItem(${file.id})">Mở</button>
-                                        <button class="btn btn-sm btn-outline-success" onclick="shareItem(${file.id})">Share</button>
+                                        <button class="btn btn-sm btn-outline-primary" onclick="openItem(${file.id}, '${file.name.replace(/'/g, "&#39;")}', '${file.type}')">Mở</button>
+                                        ${file.type === "folder"
+                        ? `<button class='btn btn-sm btn-outline-secondary' onclick='openRenameModal(${file.id}, "${file.name.replace(/'/g, "&#39;")}", "folder")'>Đổi tên</button>`
+                        : `<button class='btn btn-sm btn-outline-secondary' onclick='openRenameModal(${file.id}, "${file.name.replace(/'/g, "&#39;")}", "file")'>Đổi tên</button>
+                                        <button class='btn btn-sm btn-outline-success' onclick='shareItem(${file.id})'>Share</button>`}
                                         <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${file.id})">Xóa</button>
                                     </td>
                                 </tr>`).join("")}
@@ -281,19 +435,41 @@
                 return;
             }
 
-            container.innerHTML = list.map(file => `
-            <div class="col-md-3 mb-4">
-                <div class="card file-card p-3 text-center position-relative">
-                    <i class="bi ${detectIcon(file.name, file.content_type)} fs-1"></i>
-                    <h6 class="text-truncate" title="${file.name}">${file.name}</h6>
-                    <div class="small text-muted mb-2">${formatSize(file.size)}</div>
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-sm btn-outline-primary w-50" onclick="openItem(${file.id})">Mở</button>
-                        <button class="btn btn-sm btn-outline-success w-50" onclick="shareItem(${file.id})">Share</button>
-                        <button class="btn btn-sm btn-outline-danger w-50" onclick="deleteItem(${file.id})">Xóa</button>
-                    </div>
-                </div>
-            </div>`).join("");
+            container.innerHTML = list.map(file => {
+                if (file.type === "folder") {
+                    return `
+                    <div class="col-md-3 mb-4">
+                        <div class="card file-card p-3 text-center position-relative" onclick="openItem(${file.id}, '${file.name.replace(/'/g, "&#39;")}', 'folder')">
+                            <i class="bi bi-folder-fill fs-1 text-warning"></i>
+                            <h6 class="text-truncate" title="${file.name}">${file.name}</h6>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-sm btn-outline-secondary w-50" onclick="event.stopPropagation(); openRenameModal(${file.id}, '${file.name.replace(/'/g, "&#39;")}', 'folder')">Đổi tên</button>
+                                <button class="btn btn-sm btn-outline-danger w-50" onclick="event.stopPropagation(); deleteItem(${file.id}, 'folder')">Xóa</button>
+                            </div>
+                        </div>
+                    </div>`;
+                } else {
+                    return `
+                    <div class="col-md-3 mb-4">
+                        <div class="card file-card p-3 text-center position-relative">
+                            <i class="bi ${detectIcon(file.name, file.content_type)} fs-1"></i>
+                            <h6 class="text-truncate" title="${file.name}">${file.name}</h6>
+                            <div class="small text-muted mb-2">${formatSize(file.size)}</div>
+                            <div class="dropdown d-flex justify-content-center">
+                                <button class="btn btn-light border dropdown-toggle" type="button" id="fileActionsDropdown${file.id}" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="bi bi-three-dots"></i>
+                                </button>
+                                <ul class="dropdown-menu" aria-labelledby="fileActionsDropdown${file.id}">
+                                    <li><a class="dropdown-item" href="#" onclick="openItem(${file.id});return false;">Xem trước</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="openRenameModal(${file.id}, '${file.name.replace(/'/g, "&#39;")}', 'file');return false;">Đổi tên</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="shareItem(${file.id});return false;">Share</a></li>
+                                    <li><a class="dropdown-item text-danger" href="#" onclick="deleteItem(${file.id});return false;">Xóa</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>`;
+                }
+            }).join("");
         }
 
         function renderTrashFiles(list) {
@@ -375,7 +551,6 @@
             if (filesBtn) filesBtn.classList.toggle("active", currentSection === "files");
             if (sharedBtn) sharedBtn.classList.toggle("active", currentSection === "shared");
             if (trashBtn) trashBtn.classList.toggle("active", currentSection === "trash");
-
             if (title) {
                 if (currentSection === "files") title.textContent = "Tệp của tôi";
                 if (currentSection === "shared") title.textContent = "Đã chia sẻ";
@@ -400,16 +575,29 @@
             await renderActiveSection();
         }
 
-        async function deleteItem(id) {
-            if (!confirm("Chuyển file vào thùng rác?")) return;
-            try {
-                const res = await fetch(`${API_BASE_URL}/files/${id}`, { method: "DELETE", headers: authHeaders() });
-                if (res.status === 401) return logout();
-                if (!res.ok) throw new Error("Xóa file thất bại");
-                await loadFiles();
-                await loadQuota();
-            } catch (e) {
-                alert(e.message || "Xóa file thất bại");
+        async function deleteItem(id, type = 'file') {
+            if (type === 'folder') {
+                if (!confirm("Bạn có chắc muốn xóa thư mục này và toàn bộ file bên trong?")) return;
+                try {
+                    const res = await fetch(`${API_BASE_URL}/folders/${id}`, { method: "DELETE", headers: authHeaders() });
+                    if (res.status === 401) return logout();
+                    if (!res.ok) throw new Error("Xóa thư mục thất bại");
+                    await loadFiles();
+                    await loadQuota();
+                } catch (e) {
+                    alert(e.message || "Xóa thư mục thất bại");
+                }
+            } else {
+                if (!confirm("Chuyển file vào thùng rác?")) return;
+                try {
+                    const res = await fetch(`${API_BASE_URL}/files/${id}`, { method: "DELETE", headers: authHeaders() });
+                    if (res.status === 401) return logout();
+                    if (!res.ok) throw new Error("Xóa file thất bại");
+                    await loadFiles();
+                    await loadQuota();
+                } catch (e) {
+                    alert(e.message || "Xóa file thất bại");
+                }
             }
         }
 
@@ -560,9 +748,20 @@
         }
 
         function openItem(id) {
+            // Nhận đủ tham số: id, name, type
             const file = files.find(item => item.id === id);
             if (!file) return;
-            window.open(file.blob_url, "_blank");
+            if (file.type === 'folder' || (typeof type !== 'undefined' && type === 'folder')) {
+                // Chuyển vào thư mục
+                if (typeof currentPath === 'undefined') window.currentPath = [{ id: null, name: 'Home' }];
+                if (typeof currentFolderId === 'undefined') window.currentFolderId = null;
+                currentFolderId = id;
+                currentPath.push({ id: id, name: name });
+                if (typeof loadFiles === 'function') loadFiles();
+                if (typeof renderBreadcrumb === 'function') renderBreadcrumb();
+            } else {
+                window.open(file.blob_url, "_blank");
+            }
         }
 
         function searchFile() {
@@ -576,10 +775,6 @@
                 if (!key) return renderTrashFiles(trashFiles);
                 renderTrashFiles(trashFiles.filter(file => file.name.toLowerCase().includes(key)));
             }
-        }
-
-        function openCreateModal() {
-            document.getElementById("realUploadInput").click();
         }
 
         async function uploadSelectedFiles(event) {
@@ -611,12 +806,97 @@
             await loadQuota();
         }
 
+
         function openUpdateProfileModal() {
-            alert("Chức năng hồ sơ đang được hoàn thiện.");
+            const modal = new bootstrap.Modal(document.getElementById('changeUsernameModal'));
+            document.getElementById('changeUsernameForm').reset();
+            document.getElementById('changeUsernameMessage').textContent = '';
+            modal.show();
         }
 
+        // Hàm mở popup đổi mật khẩu
         function openChangePasswordModal() {
-            alert("Bạn có thể đổi mật khẩu ở API /auth/change-password.");
+            const modal = new bootstrap.Modal(document.getElementById('changePasswordModal'));
+            document.getElementById('changePasswordForm').reset();
+            document.getElementById('changePasswordMessage').textContent = '';
+            modal.show();
+        }
+
+        const changeUsernameForm = document.getElementById('changeUsernameForm');
+        if (changeUsernameForm) {
+            changeUsernameForm.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                const newUsername = document.getElementById('newUsername').value;
+                const messageDiv = document.getElementById('changeUsernameMessage');
+                try {
+                    const response = await fetch(`${API_BASE_URL}/auth/change-username`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...authHeaders()
+                        },
+                        body: JSON.stringify({ username: newUsername })
+                    });
+                    const data = await response.json();
+                    if (response.ok) {
+                        messageDiv.textContent = 'Đổi tên đăng nhập thành công!';
+                        messageDiv.style.color = 'green';
+                        // Cập nhật lại giao diện nếu cần
+                        if (data.username && document.getElementById('userDisplay')) {
+                            document.getElementById('userDisplay').textContent = data.username;
+                        }
+                    } else {
+                        messageDiv.textContent = data.detail || 'Đổi tên đăng nhập thất bại!';
+                        messageDiv.style.color = 'red';
+                    }
+                } catch (error) {
+                    messageDiv.textContent = 'Lỗi kết nối đến máy chủ!';
+                    messageDiv.style.color = 'red';
+                }
+            });
+        }
+
+        // Xử lý submit đổi mật khẩu
+        const changePasswordForm = document.getElementById('changePasswordForm');
+        if (changePasswordForm) {
+            changePasswordForm.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                const oldPassword = document.getElementById('oldPassword').value;
+                const newPassword = document.getElementById('newPassword').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+                const messageDiv = document.getElementById('changePasswordMessage');
+
+                if (newPassword !== confirmPassword) {
+                    messageDiv.textContent = 'Mật khẩu mới và xác nhận không khớp!';
+                    messageDiv.style.color = 'red';
+                    return;
+                }
+                try {
+                    const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...authHeaders()
+                        },
+                        body: JSON.stringify({
+                            old_password: oldPassword,
+                            new_password: newPassword
+                        })
+                    });
+                    const data = await response.json();
+                    if (response.ok) {
+                        messageDiv.textContent = 'Đổi mật khẩu thành công!';
+                        messageDiv.style.color = 'green';
+                        changePasswordForm.reset();
+                    } else {
+                        messageDiv.textContent = data.detail || 'Đổi mật khẩu thất bại!';
+                        messageDiv.style.color = 'red';
+                    }
+                } catch (error) {
+                    messageDiv.textContent = 'Lỗi kết nối đến máy chủ!';
+                    messageDiv.style.color = 'red';
+                }
+            });
         }
 
         document.getElementById("gridBtn").onclick = () => {
@@ -629,7 +909,6 @@
             if (currentSection === "files") renderFiles(files);
         };
 
-        document.getElementById("realUploadInput").addEventListener("change", uploadSelectedFiles);
         document.getElementById("shareNoExpiry").addEventListener("change", (event) => {
             const expiryInput = document.getElementById("shareExpiryAt");
             expiryInput.disabled = event.target.checked;
@@ -647,7 +926,84 @@
     </script>
 
     <!-- Script Logout -->
+
+    <!-- Script Upload (for openChangePasswordModal) -->
+
+    <script src="js/profile.js"></script>
+    <script src="js/upload.js"></script>
     <script src="js/logout.js"></script>
+
+
+    <script>
+        // Modal rename folder logic
+        let renameFolderId = null;
+        let renameFolderOldName = "";
+        let renameFolderModal = null;
+
+        // Biến lưu loại đổi tên (file/folder)
+        let renameType = "folder";
+        function openRenameModal(id, oldName, type) {
+            renameFolderId = id;
+            renameFolderOldName = oldName;
+            renameType = type || "folder";
+            if (!renameFolderModal) {
+                renameFolderModal = new bootstrap.Modal(document.getElementById('renameFolderModal'));
+            }
+            document.getElementById('renameFolderForm').reset();
+            document.getElementById('renameFolderNewName').value = oldName;
+            document.getElementById('renameFolderMessage').textContent = '';
+            // Đổi tiêu đề modal cho phù hợp
+            document.getElementById('renameFolderModalLabel').textContent = type === 'file' ? 'Đổi tên file' : 'Đổi tên thư mục';
+            renameFolderModal.show();
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const renameFolderForm = document.getElementById('renameFolderForm');
+            if (renameFolderForm) {
+                renameFolderForm.addEventListener('submit', async function (e) {
+                    e.preventDefault();
+                    const newName = document.getElementById('renameFolderNewName').value.trim();
+                    const messageDiv = document.getElementById('renameFolderMessage');
+                    if (!newName) {
+                        messageDiv.textContent = 'Vui lòng nhập tên mới!';
+                        messageDiv.style.color = 'red';
+                        return;
+                    }
+                    if (newName === renameFolderOldName) {
+                        messageDiv.textContent = 'Tên mới phải khác tên cũ!';
+                        messageDiv.style.color = 'red';
+                        return;
+                    }
+                    try {
+                        const endpoint = renameType === 'file' ? '/files/rename' : '/folders/rename';
+                        const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+                            method: 'PUT',
+                            headers: {
+                                ...authHeaders(),
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ id: renameFolderId, new_name: newName })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            messageDiv.textContent = `Đã đổi tên ${renameType === 'file' ? 'file' : 'thư mục'} thành công!`;
+                            messageDiv.style.color = 'green';
+                            setTimeout(() => {
+                                renameFolderModal.hide();
+                                loadFiles();
+                            }, 800);
+                        } else {
+                            messageDiv.textContent = data.message || 'Đổi tên thất bại!';
+                            messageDiv.style.color = 'red';
+                        }
+                    } catch (error) {
+                        messageDiv.textContent = 'Lỗi kết nối hoặc đổi tên thất bại!';
+                        messageDiv.style.color = 'red';
+                    }
+                });
+            }
+        });
+    </script>
 
 
 

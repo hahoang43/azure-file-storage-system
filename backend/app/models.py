@@ -23,10 +23,12 @@ class Folder(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    parent_id = Column(Integer, ForeignKey("folders.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     owner = relationship("User", back_populates="folders")
     files = relationship("File", back_populates="folder")
+    children = relationship("Folder", backref="parent", remote_side="Folder.id")
 
 class File(Base):
     __tablename__ = "files"

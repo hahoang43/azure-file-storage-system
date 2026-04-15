@@ -1,14 +1,13 @@
+from pydantic import BaseModel, EmailStr, ConfigDict
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, EmailStr, ConfigDict
-
-
+class UpdateUsernameRequest(BaseModel):
+    username: str
 class UserCreate(BaseModel):
     username: str
     email: EmailStr
     password: str
-
 
 class UserResponse(BaseModel):
     id: int
@@ -20,15 +19,13 @@ class UserResponse(BaseModel):
     used_storage: int
     max_storage: int
 
-    model_config = ConfigDict(from_attributes=True)
-
 # ==========================================
 # CÁC KHUÔN MỚI DÀNH CHO TÍNH NĂNG ĐĂNG NHẬP
 # ==========================================
 
 # 3. Khuôn hứng dữ liệu Đăng nhập
 class UserLogin(BaseModel):
-    username: str
+    email: str
     password: str
 
 # 4. Khuôn trả về Thẻ thông hành (JWT)
@@ -92,3 +89,29 @@ class FileListResponse(BaseModel):
 class FileActionResponse(BaseModel):
     success: bool
     message: str
+
+
+class FolderCreateRequest(BaseModel):
+    name: str
+    parent_id: int | None = None
+
+
+class FolderResponse(BaseModel):
+    id: int
+    name: str
+    owner_id: int
+    parent_id: int | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+class FolderListResponse(BaseModel):
+    items: list[FolderResponse]
+
+class FolderAndFileListResponse(BaseModel):
+    folders: list[FolderResponse]
+    files: list[FileItemResponse]
+class RenameRequest(BaseModel):
+    id: int
+    new_name: str

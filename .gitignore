@@ -19,3 +19,5 @@ Thumbs.db
 
 # Node
 node_modules/
+
+backend/storage/

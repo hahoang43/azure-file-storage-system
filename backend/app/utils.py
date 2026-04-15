@@ -43,10 +43,10 @@ from jose import JWTError, jwt as jose_jwt
 def verify_access_token(token: str, credentials_exception):
     try:
         payload = jose_jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
+        email: str = payload.get("sub")
+        if email is None:
             raise credentials_exception
-        return username
+        return email
     except JWTError:
         raise credentials_exception
 

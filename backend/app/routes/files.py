@@ -209,3 +209,15 @@ def public_content(
         filename=file_obj.name,
         content_disposition_type=disposition_type,
     )
+@router.put("/rename", response_model=schemas.FileActionResponse)
+def rename_file(
+    req: schemas.RenameRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[models.User, Depends(get_current_user)],
+):
+    file_obj = db.query(models.File).filter(models.File.id == req.id, models.File.owner_id == current_user.id).first()
+    if not file_obj:
+        raise HTTPException(status_code=404, detail="Không tìm thấy file")
+    file_obj.name = req.new_name.strip()
+    db.commit()
+    return {"success": True, "message": "Đã đổi tên file"}

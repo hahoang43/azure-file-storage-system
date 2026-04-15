@@ -1,14 +1,47 @@
 <div id="sidebar">
-    <div class="d-flex align-items-center mb-4 px-2">
+    <a href="index.html" class="d-flex align-items-center mb-4 px-2" style="text-decoration:none; color:inherit">
         <i class="bi bi-cloud-check-fill fs-3 me-2"></i>
         <h4 class="mb-0 fw-bold">MyCloud</h4>
+    </a>
+    <!-- Dropdown menu for 'Mới' -->
+    <div class="dropdown mb-4">
+        <button class="btn btn-light w-100 fw-bold shadow-sm dropdown-toggle" type="button" id="newDropdownBtn"
+            data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-plus-lg me-2"></i> Mới
+        </button>
+        <ul class="dropdown-menu w-100 shadow" aria-labelledby="newDropdownBtn">
+            <li>
+                <a class="dropdown-item d-flex align-items-center" href="#"
+                    onclick="openCreateFolderModal(); return false;">
+                    <i class="bi bi-folder-plus me-2"></i> Thư mục mới
+                </a>
+            </li>
+            <li>
+                <hr class="dropdown-divider">
+            </li>
+            <li>
+                <a class="dropdown-item d-flex align-items-center" href="#"
+                    onclick="document.getElementById('sidebar-upload-file-input').click(); return false;">
+                    <i class="bi bi-file-earmark-arrow-up me-2"></i> Tải tệp lên
+                </a>
+                <input type="file" id="sidebar-upload-file-input" style="display:none" multiple
+                    onchange="uploadSelectedFiles && uploadSelectedFiles(event)">
+            </li>
+            <li>
+                <a class="dropdown-item d-flex align-items-center" href="#"
+                    onclick="document.getElementById('sidebar-upload-folder-input').click(); return false;">
+                    <i class="bi bi-folder-symlink me-2"></i> Tải thư mục lên
+                </a>
+                <input type="file" id="sidebar-upload-folder-input" style="display:none" webkitdirectory directory
+                    multiple onchange="uploadSelectedFiles && uploadSelectedFiles(event)">
+            </li>
+        </ul>
     </div>
-    <button class="btn btn-light w-100 mb-4 fw-bold shadow-sm" onclick="openCreateModal()">
-        <i class="bi bi-plus-lg me-2"></i> Mới
-    </button>
     <nav>
-        <a id="nav-files" href="index.html?section=files" class="active"><i class="bi bi-folder2-open me-2"></i> Tệp của tôi</a>
-        <a id="nav-upload" href="uploadfile.html"><i class="bi bi-cloud-arrow-up me-2"></i> UploadFiles</a>
+        <a id="nav-files" href="index.html?section=files" class="active"><i class="bi bi-folder2-open me-2"></i> Tệp của
+            tôi</a>
+        <a id="nav-upload" href="uploadfile.html?section=upload"><i class="bi bi-cloud-arrow-up me-2"></i>
+            UploadFiles</a>
         <a id="nav-shared" href="index.html?section=shared"><i class="bi bi-clock-history me-2"></i> Đã chia sẻ</a>
         <a id="nav-trash" href="index.html?section=trash"><i class="bi bi-trash me-2"></i> Thùng rác</a>
     </nav>
@@ -20,3 +53,9 @@
         <small style="font-size: 0.75rem;" id="quotaText">Đang tải...</small>
     </div>
 </div>
+<script>
+    function openCreateFolderModal() {
+        var modal = new bootstrap.Modal(document.getElementById('createFolderModal'));
+        modal.show();
+    }
+</script>

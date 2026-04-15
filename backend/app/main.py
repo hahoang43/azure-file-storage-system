@@ -5,7 +5,7 @@ import uuid
 import os
 from datetime import datetime
 
-from app.routes import auth, shared, files
+from app.routes import auth, shared, files, folder
 
 from .database import engine
 from . import models
@@ -27,6 +27,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(shared.router)
 app.include_router(files.router)
+app.include_router(folder.router)
 
 # --- CẤU HÌNH AZURE BLOB STORAGE ---
 AZURE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=YOUR_ACCOUNT;AccountKey=YOUR_KEY;EndpointSuffix=core.windows.net"

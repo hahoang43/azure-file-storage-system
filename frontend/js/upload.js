@@ -1,5 +1,6 @@
 const API_URL = "http://127.0.0.1:8000";
 
+
 const dropZone = document.getElementById('drop-zone');
 const uploadBtn = document.getElementById('upload-btn');
 const fileInput = document.getElementById('file-input');
@@ -7,6 +8,26 @@ const progressContainer = document.getElementById('upload-progress-container');
 const emptyState = document.getElementById('empty-state');
 const fileTable = document.getElementById('file-table');
 const fileList = document.getElementById('file-list');
+
+// Chỉ thực thi event nếu đúng trang upload
+if (dropZone && uploadBtn && fileInput) {
+    dropZone.addEventListener('click', (e) => {
+        if (e.target !== uploadBtn && fileInput) fileInput.click();
+    });
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('dragover');
+    });
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+    });
+}
 
 function getAuthToken() {
     return localStorage.getItem("mycloud_token");
@@ -168,6 +189,9 @@ function uploadFileReal(file) {
         const formData = new FormData();
 
         formData.append('file', file);
+        if (window.currentFolderId) {
+            formData.append('folder_id', window.currentFolderId);
+        }
         xhr.open('POST', `${API_URL}/files/upload`);
 
         const token = getAuthToken();
@@ -242,14 +266,6 @@ function logout() {
     window.location.href = "auth.html";
 }
 
-function openUpdateProfileModal() {
-    alert("Chức năng hồ sơ đang được hoàn thiện.");
-}
-
-function openChangePasswordModal() {
-    alert("Đổi mật khẩu hiện dùng API /auth/change-password.");
-}
-
 function searchFile() {
     const keyword = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
     Array.from(fileList.querySelectorAll('tr')).forEach((row) => {
@@ -258,17 +274,21 @@ function searchFile() {
     });
 }
 
-uploadBtn.addEventListener('click', () => fileInput.click());
-dropZone.addEventListener('click', (e) => {
-    if (e.target !== uploadBtn) fileInput.click();
-});
-
-fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
-
-dropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropZone.classList.add('dragover');
-});
+if (uploadBtn) {
+    uploadBtn.addEventListener('click', () => fileInput && fileInput.click());
+}
+if (dropZone) {
+    dropZone.addEventListener('click', (e) => {
+        if (e.target !== uploadBtn && fileInput) fileInput.click();
+    });
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+}
+if (fileInput) {
+    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+};
 
 dropZone.addEventListener('dragleave', () => {
     dropZone.classList.remove('dragover');

@@ -8,24 +8,36 @@ if (!token) {
 
 let allFiles = []; // Dữ liệu thô từ server
 let currentFolderId = null;
-let currentPath = [{id: null, name: "Home"}];
+let currentPath = [{ id: null, name: "Home" }];
 let viewMode = "grid";
 
 // 2. LOAD DỮ LIỆU TỪ SERVER
 async function loadFiles() {
     try {
-        const response = await fetch(`${API_URL}/files/list?folder_id=${currentFolderId || ''}`, {
+        const response = await fetch(`${API_URL}/folders/contents${currentFolderId ? `?parent_id=${currentFolderId}` : ''}`, {
             headers: { "Authorization": `Bearer ${token}` }
         });
-        
         if (response.status === 401) logout();
-
-        allFiles = await response.json();
+        const data = await response.json();
+        // Chuẩn hóa dữ liệu: gắn type cho từng item
+        allFiles = [
+            ...data.folders.map(f => ({
+                id: f.id,
+                name: f.name,
+                type: "folder",
+                updated_at: f.updated_at
+            })),
+            ...data.files.map(f => ({
+                id: f.id,
+                name: f.name,
+                type: "file",
+                updated_at: f.updated_at
+            }))
+        ];
         renderFiles(allFiles);
         renderBreadcrumb();
     } catch (error) {
-        console.error("Không thể tải danh sách file.");
-        // Nếu server chưa có API, bạn có thể tạo dữ liệu giả ở đây để test giao diện
+        console.error("Không thể tải danh sách file và thư mục.");
     }
 }
 
@@ -46,7 +58,7 @@ function renderFiles(list) {
         else if (f.name.endsWith(".pdf")) iconClass = "bi-file-earmark-pdf text-danger";
 
         const colClass = viewMode === "grid" ? "col-md-3 col-sm-6 mb-4" : "col-12 mb-2";
-        
+
         if (viewMode === "grid") {
             container.innerHTML += `
                 <div class="${colClass}">
@@ -54,8 +66,8 @@ function renderFiles(list) {
                         <i class="bi ${iconClass} file-icon"></i>
                         <div class="text-truncate fw-medium">${f.name}</div>
                         <div class="d-flex justify-content-center mt-2 opacity-0-hover">
-                            <button class="btn btn-sm btn-light me-1" onclick="event.stopPropagation(); renameItem(${f.id})"><i class="bi bi-pencil"></i></button>
-                            <button class="btn btn-sm btn-light text-danger" onclick="event.stopPropagation(); deleteItem(${f.id})"><i class="bi bi-trash"></i></button>
+                            <button class="btn btn-sm btn-light me-1" onclick="event.stopPropagation(); renameItem(${f.id}, '${f.type}')"><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-light text-danger" onclick="event.stopPropagation(); deleteItem(${f.id}, '${f.type}')"><i class="bi bi-trash"></i></button>
                         </div>
                     </div>
                 </div>`;
@@ -66,7 +78,7 @@ function renderFiles(list) {
                         <i class="bi ${iconClass} fs-4 me-3"></i>
                         <div class="flex-grow-1 text-truncate">${f.name}</div>
                         <div class="text-muted small me-4">${f.type.toUpperCase()}</div>
-                        <button class="btn btn-sm btn-link text-dark" onclick="event.stopPropagation(); deleteItem(${f.id})"><i class="bi bi-trash"></i></button>
+                        <button class="btn btn-sm btn-link text-dark" onclick="event.stopPropagation(); deleteItem(${f.id}, '${f.type}')"><i class="bi bi-trash"></i></button>
                     </div>
                 </div>`;
         }
@@ -77,11 +89,32 @@ function renderFiles(list) {
 function openItem(id, name, type) {
     if (type === "folder") {
         currentFolderId = id;
-        currentPath.push({id: id, name: name});
+        currentPath.push({ id: id, name: name });
         loadFiles();
     } else {
-        previewFile(id, name);
+        // Nếu có hàm xem trước file thì gọi, nếu không thì có thể mở file trực tiếp
+        if (typeof previewFile === 'function') previewFile(id, name);
+        else alert('Xem file: ' + name);
     }
+}
+// 7. HIỂN THỊ BREADCRUMB
+function renderBreadcrumb() {
+    const breadcrumb = document.getElementById('breadcrumb');
+    if (!breadcrumb) return;
+    breadcrumb.innerHTML = currentPath.map((item, idx) => {
+        if (idx === currentPath.length - 1) {
+            return `<li class="breadcrumb-item active">${item.name}</li>`;
+        } else {
+            return `<li class="breadcrumb-item"><a href="#" onclick="goToFolder(${idx})">${item.name}</a></li>`;
+        }
+    }).join('');
+}
+
+function goToFolder(idx) {
+    // Quay lại folder ở vị trí idx trong currentPath
+    currentPath = currentPath.slice(0, idx + 1);
+    currentFolderId = currentPath[idx].id;
+    loadFiles();
 }
 
 // 5. UPLOAD FILE THẬT
