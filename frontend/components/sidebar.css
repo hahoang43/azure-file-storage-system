@@ -5,9 +5,25 @@
     flex-direction: column;
     padding: 1.5rem;
     height: 100vh;
+    overflow: visible;
 }
 
-#sidebar a {
+#sidebar .dropdown {
+    position: relative;
+    z-index: 1200;
+}
+
+#sidebar .dropdown-menu {
+    z-index: 2000;
+    min-width: 100%;
+}
+
+#sidebar .dropdown-menu.show {
+    display: block;
+}
+
+#sidebar > a,
+#sidebar nav a {
     color: rgba(255, 255, 255, 0.8);
     padding: 12px 15px;
     display: block;
@@ -32,8 +48,10 @@
     font-weight: 500;
 }
 
-#sidebar a:hover,
-#sidebar a.active,
+#sidebar > a:hover,
+#sidebar > a.active,
+#sidebar nav a:hover,
+#sidebar nav a.active,
 #sidebar .sidebar-nav-btn:hover,
 #sidebar .sidebar-nav-btn.active {
     background: rgba(0, 0, 0, 0.18);

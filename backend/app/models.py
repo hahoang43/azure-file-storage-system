@@ -22,6 +22,7 @@ class Folder(Base):
     __tablename__ = "folders"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
+    is_deleted = Column(Boolean, default=False)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     parent_id = Column(Integer, ForeignKey("folders.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -49,10 +50,12 @@ class File(Base):
 class SharedLink(Base):
     __tablename__ = "shared_links"
     id = Column(Integer, primary_key=True, index=True)
-    file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
+    file_id = Column(Integer, ForeignKey("files.id"), nullable=True)
+    folder_id = Column(Integer, ForeignKey("folders.id"), nullable=True)
     link = Column(String(255), unique=True, nullable=False)
     expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     file = relationship("File", back_populates="sharedd_links")
+    folder = relationship("Folder")
     token= Column(String(255), unique=True, nullable=False)

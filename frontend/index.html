@@ -13,9 +13,39 @@
     <link rel="stylesheet" href="components/sidebar.css">
     <link rel="stylesheet" href="components/topbar.css">
 
+    <style>
+        .file-card-selectable {
+            cursor: default;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+        }
+
+        .file-card-selected {
+            border-color: #0d6efd !important;
+            box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+            background: #f8fbff;
+        }
+
+        .file-row-selected > td {
+            background-color: #eef5ff !important;
+        }
+
+        .file-select-checkbox {
+            width: 1rem;
+            height: 1rem;
+            cursor: pointer;
+        }
+
+        .bulk-action-disabled {
+            opacity: 0.55;
+        }
+    </style>
+
 </head>
 
 <body>
+    <!-- Toast notification container -->
+    <div id="upload-toast-container" style="position: fixed; top: 20px; right: 20px; z-index: 9999;"></div>
+
     <!-- Modal đổi tên đăng nhập -->
     <div class="modal fade" id="changeUsernameModal" tabindex="-1" aria-labelledby="changeUsernameModalLabel"
         aria-hidden="true">
@@ -74,6 +104,10 @@
                 <div class="container-fluid px-4 py-3">
                     <div class="row align-items-center mb-3">
                         <div class="col-md-8 col-12 mb-2 mb-md-0 d-flex align-items-center">
+                            <button id="goBackBtn" type="button" class="btn btn-outline-secondary btn-sm me-2 d-none"
+                                onclick="goBackFolder()">
+                                <i class="bi bi-arrow-left"></i>
+                            </button>
                             <nav aria-label="breadcrumb" class="me-3">
                                 <ol class="breadcrumb mb-0" id="breadcrumb" style="font-weight: 500;"></ol>
                             </nav>
@@ -92,6 +126,34 @@
                                 <button id="trashSectionBtn" class="btn btn-light btn-sm border-0 px-3"
                                     onclick="switchSection('trash')">
                                     <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                            <div id="trashBulkActions" class="btn-group shadow-sm bg-white rounded border d-none">
+                                <button id="trashSelectAllBtn" type="button" class="btn btn-light btn-sm border-0 px-3"
+                                    onclick="toggleSelectAllVisibleTrashFiles()">
+                                    <i class="bi bi-check2-square"></i> Chọn tất cả
+                                </button>
+                                <button id="trashRestoreBtn" type="button" class="btn btn-light btn-sm border-0 px-3"
+                                    onclick="restoreSelectedTrashFiles()">
+                                    Khôi phục
+                                </button>
+                                <button id="trashPermanentDeleteBtn" type="button" class="btn btn-light btn-sm border-0 px-3 text-danger"
+                                    onclick="permanentDeleteSelectedTrashFiles()">
+                                    Xóa vĩnh viễn
+                                </button>
+                            </div>
+                            <div id="sharedBulkActions" class="btn-group shadow-sm bg-white rounded border d-none">
+                                <button id="sharedSelectAllBtn" type="button" class="btn btn-light btn-sm border-0 px-3"
+                                    onclick="toggleSelectAllVisibleSharedLinks()">
+                                    <i class="bi bi-check2-square"></i> Chọn tất cả
+                                </button>
+                                <button id="sharedDeleteSelectedBtn" type="button" class="btn btn-light btn-sm border-0 px-3 text-danger"
+                                    onclick="deleteSelectedSharedLinks()">
+                                    Xóa đã chọn
+                                </button>
+                                <button id="sharedDeleteAllBtn" type="button" class="btn btn-light btn-sm border-0 px-3 text-danger"
+                                    onclick="deleteAllSharedLinks()">
+                                    Xóa tất cả
                                 </button>
                             </div>
                             <div class="btn-group shadow-sm bg-white rounded border">
@@ -189,6 +251,7 @@
                 })
             ]).then(() => {
                 // Sau khi đã render xong sidebar/topbar/modal, mới chạy các script phụ thuộc DOM
+                if (typeof bindSidebarClientNavigation === 'function') bindSidebarClientNavigation();
                 if (typeof setActiveNav === 'function') setActiveNav();
                 if (typeof loadQuota === 'function') loadQuota();
 
@@ -221,7 +284,10 @@
                                     'Content-Type': 'application/json',
                                     'Authorization': `Bearer ${token}`
                                 },
-                                body: JSON.stringify({ name: folderName })
+                                body: JSON.stringify({
+                                    name: folderName,
+                                    parent_id: currentFolderId,
+                                })
                             });
                             const data = await res.json();
                             if (res.ok) {
@@ -239,6 +305,7 @@
                                 messageDiv.style.color = 'red';
                             }
                         } catch (error) {
+                            console.error('Create folder failed:', error);
                             messageDiv.textContent = 'Lỗi kết nối đến máy chủ!';
                             messageDiv.style.color = 'red';
                         }
@@ -259,8 +326,150 @@
         let sharedLinks = [];
         let currentSection = "files";
         let viewMode = "grid";
-        let pendingShareFileId = null;
+        let selectedFileIds = new Set();
+        let selectedFolderIds = new Set();
+        let selectedSharedLinkIds = new Set();
+        let pendingShareItemIds = [];
+        let pendingShareItemType = "file"; // "file" or "folder"
         let shareExpiryModal = null;
+        let isUploadInProgress = false;
+        const FOLDER_CONTEXT_STORAGE_KEY = "mycloud_folder_context";
+
+        function setUploadUiState(isBusy) {
+            isUploadInProgress = Boolean(isBusy);
+            const navLinks = document.querySelectorAll('#sidebar a[href]');
+            navLinks.forEach((link) => {
+                link.style.pointerEvents = isUploadInProgress ? 'none' : '';
+                link.style.opacity = isUploadInProgress ? '0.6' : '';
+            });
+        }
+
+        document.addEventListener('click', (event) => {
+            if (!isUploadInProgress) return;
+            const link = event.target.closest('a[href]');
+            if (link) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        }, true);
+
+        globalThis.addEventListener('beforeunload', (event) => {
+            if (!isUploadInProgress) return;
+            event.preventDefault();
+            event.returnValue = '';
+        });
+
+        function readStoredFolderContext() {
+            try {
+                const raw = localStorage.getItem(FOLDER_CONTEXT_STORAGE_KEY);
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed?.path) || !parsed.path.length) return null;
+                return {
+                    folderId: parsed.folderId ?? null,
+                    path: parsed.path.map((item) => ({ id: item?.id ?? null, name: item?.name || "Home" })),
+                };
+            } catch {
+                return null;
+            }
+        }
+
+        function syncFolderState() {
+            globalThis.currentFolderId = currentFolderId;
+            globalThis.currentPath = currentPath;
+            try {
+                localStorage.setItem(
+                    FOLDER_CONTEXT_STORAGE_KEY,
+                    JSON.stringify({ folderId: currentFolderId, path: currentPath })
+                );
+            } catch {
+                // Ignore storage quota/security errors.
+            }
+        }
+
+        function getResolvedCurrentPath() {
+            if (Array.isArray(currentPath) && currentPath.length) {
+                return currentPath.map((item) => ({ id: item.id, name: item.name }));
+            }
+            if (Array.isArray(globalThis.currentPath) && globalThis.currentPath.length) {
+                return globalThis.currentPath.map((item) => ({ id: item.id, name: item.name }));
+            }
+            const stored = readStoredFolderContext();
+            if (stored?.path?.length) {
+                return stored.path;
+            }
+            return [{ id: null, name: "Home" }];
+        }
+
+        function getUploadContextSnapshot() {
+            const resolvedPath = getResolvedCurrentPath();
+            const currentNode = resolvedPath[resolvedPath.length - 1] || { id: null, name: "Home" };
+            return {
+                folderId: currentNode.id ?? null,
+                path: resolvedPath,
+            };
+        }
+
+        function prepareSidebarUpload(eventOrInputId, maybeInputId) {
+            const clickEvent = typeof eventOrInputId === 'object' && eventOrInputId !== null ? eventOrInputId : null;
+            const inputId = typeof eventOrInputId === 'string' ? eventOrInputId : maybeInputId;
+
+            if (clickEvent) {
+                clickEvent.preventDefault();
+                clickEvent.stopPropagation();
+            }
+
+            const input = document.getElementById(inputId);
+            if (!input) return;
+
+            const snapshot = getUploadContextSnapshot();
+            input.dataset.folderId = snapshot.folderId == null ? "" : String(snapshot.folderId);
+            input.dataset.path = JSON.stringify(snapshot.path);
+            setTimeout(() => input.click(), 0);
+        }
+
+        function bindSidebarClientNavigation() {
+            const sidebarContainer = document.getElementById('sidebar-container');
+            if (!sidebarContainer || sidebarContainer.dataset.navBound === '1') return;
+
+            sidebarContainer.addEventListener('click', async (event) => {
+                const anchor = event.target.closest('a[href]');
+                if (!anchor) return;
+
+                const anchorId = anchor.id;
+                const href = (anchor.getAttribute('href') || '').trim();
+
+                if (anchorId === 'nav-files' || anchorId === 'nav-shared' || anchorId === 'nav-trash') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    let section = 'trash';
+                    if (anchorId === 'nav-files') section = 'files';
+                    if (anchorId === 'nav-shared') section = 'shared';
+                    await switchSection(section);
+                    history.replaceState(null, '', `index.html?section=${section}`);
+                    return;
+                }
+
+                if (href === 'index.html' && !anchorId) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    currentSection = 'files';
+                    await goToRoot();
+                    history.replaceState(null, '', 'index.html?section=files');
+                }
+            });
+
+            sidebarContainer.dataset.navBound = '1';
+        }
+
+        globalThis.prepareSidebarUpload = prepareSidebarUpload;
+
+        const storedFolderContext = readStoredFolderContext();
+        if (storedFolderContext) {
+            currentFolderId = storedFolderContext.folderId;
+            currentPath = storedFolderContext.path;
+        }
+        syncFolderState();
 
         function getToken() {
             return localStorage.getItem("mycloud_token");
@@ -296,10 +505,372 @@
 
         function detectIcon(fileName, contentType) {
             const lower = (fileName || "").toLowerCase();
+            if (contentType === "folder") return "bi-folder-fill text-warning";
             if (contentType?.startsWith("image/")) return "bi-image text-success";
             if (lower.endsWith(".pdf")) return "bi-file-earmark-pdf text-danger";
             if (lower.endsWith(".doc") || lower.endsWith(".docx")) return "bi-file-earmark-word text-primary";
             return "bi-file-earmark text-secondary";
+        }
+
+        function escapeInlineText(value) {
+            return String(value ?? "").replaceAll("'", "&#39;");
+        }
+
+        function getSelectableFiles() {
+            return files.filter((file) => file.type === "file");
+        }
+
+        function getSelectableFolders() {
+            return files.filter((file) => file.type === "folder");
+        }
+
+        function getSelectableTrashFiles() {
+            return trashFiles.filter((file) => file.type === "file" || file.type === "folder");
+        }
+
+        function getSelectedTrashIds() {
+            const trashIds = new Set(getSelectableTrashFiles().map((file) => file.id));
+            return Array.from(selectedFileIds).filter((fileId) => trashIds.has(fileId));
+        }
+
+        function getSelectableSharedLinks() {
+            return sharedLinks;
+        }
+
+        function getSelectedSharedLinkIds() {
+            const sharedIds = new Set(getSelectableSharedLinks().map((item) => item.id));
+            return Array.from(selectedSharedLinkIds).filter((linkId) => sharedIds.has(linkId));
+        }
+
+        function clearSelection() {
+            selectedFileIds.clear();
+            selectedFolderIds.clear();
+            updateBulkActionButtons();
+        }
+
+        function clearSharedSelection() {
+            selectedSharedLinkIds.clear();
+            updateBulkActionButtons();
+        }
+
+        function setFileSelection(fileId, isSelected) {
+            if (isSelected) {
+                selectedFileIds.add(fileId);
+            } else {
+                selectedFileIds.delete(fileId);
+            }
+            updateBulkActionButtons();
+        }
+
+        function toggleFileSelection(fileId, isSelected) {
+            setFileSelection(fileId, Boolean(isSelected));
+            if (currentSection === "files") {
+                renderFiles(files);
+            }
+        }
+
+        function setFolderSelection(folderId, isSelected) {
+            if (isSelected) {
+                selectedFolderIds.add(folderId);
+            } else {
+                selectedFolderIds.delete(folderId);
+            }
+            updateBulkActionButtons();
+        }
+
+        function toggleFolderSelection(folderId, isSelected) {
+            setFolderSelection(folderId, Boolean(isSelected));
+            if (currentSection === "files") {
+                renderFiles(files);
+            }
+        }
+
+        function toggleSelectAllVisibleFiles() {
+            const selectableFiles = getSelectableFiles();
+            const selectableFolders = getSelectableFolders();
+            const totalSelectable = selectableFiles.length + selectableFolders.length;
+            if (!totalSelectable) return;
+
+            const allFilesSelected = selectableFiles.every((file) => selectedFileIds.has(file.id));
+            const allFoldersSelected = selectableFolders.every((folder) => selectedFolderIds.has(folder.id));
+            const allSelected = allFilesSelected && allFoldersSelected;
+            if (allSelected) {
+                selectableFiles.forEach((file) => selectedFileIds.delete(file.id));
+                selectableFolders.forEach((folder) => selectedFolderIds.delete(folder.id));
+            } else {
+                selectableFiles.forEach((file) => selectedFileIds.add(file.id));
+                selectableFolders.forEach((folder) => selectedFolderIds.add(folder.id));
+            }
+            updateBulkActionButtons();
+            renderFiles(files);
+        }
+
+        function toggleTrashSelection(fileId, isSelected) {
+            setFileSelection(fileId, Boolean(isSelected));
+            if (currentSection === "trash") {
+                renderTrashFiles(trashFiles);
+            }
+        }
+
+        function toggleSelectAllVisibleTrashFiles() {
+            const selectableFiles = getSelectableTrashFiles();
+            if (!selectableFiles.length) return;
+
+            const allSelected = selectableFiles.every((file) => selectedFileIds.has(file.id));
+            if (allSelected) {
+                selectableFiles.forEach((file) => selectedFileIds.delete(file.id));
+            } else {
+                selectableFiles.forEach((file) => selectedFileIds.add(file.id));
+            }
+            updateBulkActionButtons();
+            renderTrashFiles(trashFiles);
+        }
+
+        function toggleSharedSelection(linkId, isSelected) {
+            if (isSelected) {
+                selectedSharedLinkIds.add(linkId);
+            } else {
+                selectedSharedLinkIds.delete(linkId);
+            }
+            updateBulkActionButtons();
+            if (currentSection === "shared") {
+                renderSharedLinks();
+            }
+        }
+
+        function toggleSelectAllVisibleSharedLinks() {
+            const selectableLinks = getSelectableSharedLinks();
+            if (!selectableLinks.length) return;
+
+            const allSelected = selectableLinks.every((item) => selectedSharedLinkIds.has(item.id));
+            if (allSelected) {
+                selectableLinks.forEach((item) => selectedSharedLinkIds.delete(item.id));
+            } else {
+                selectableLinks.forEach((item) => selectedSharedLinkIds.add(item.id));
+            }
+            updateBulkActionButtons();
+            renderSharedLinks();
+        }
+
+        async function deleteSelectedSharedLinks() {
+            const selectedIds = getSelectedSharedLinkIds();
+            if (!selectedIds.length) {
+                alert("Hãy chọn ít nhất 1 link chia sẻ để xóa.");
+                return;
+            }
+
+            if (!confirm(`Xóa ${selectedIds.length} link chia sẻ đã chọn?`)) return;
+
+            const failures = [];
+            for (const linkId of selectedIds) {
+                try {
+                    await revokeLink(linkId, true, true, true);
+                } catch (error) {
+                    failures.push(`ID ${linkId}: ${error.message || "Thu hồi link thất bại"}`);
+                }
+            }
+
+            clearSharedSelection();
+            await loadSharedLinks();
+            if (failures.length) {
+                alert(`Một số link không xóa được:\n- ${failures.join("\n- ")}`);
+            }
+        }
+
+        async function deleteAllSharedLinks() {
+            if (!sharedLinks.length) {
+                alert("Không có link chia sẻ nào để xóa.");
+                return;
+            }
+
+            if (!confirm(`Xóa tất cả ${sharedLinks.length} link chia sẻ?`)) return;
+
+            const failures = [];
+            for (const item of sharedLinks) {
+                try {
+                    await revokeLink(item.id, true, true, true);
+                } catch (error) {
+                    failures.push(`ID ${item.id}: ${error.message || "Thu hồi link thất bại"}`);
+                }
+            }
+
+            clearSharedSelection();
+            await loadSharedLinks();
+            if (failures.length) {
+                alert(`Một số link không xóa được:\n- ${failures.join("\n- ")}`);
+            }
+        }
+
+        async function restoreSelectedTrashFiles() {
+            const selectedItems = getSelectedTrashIds()
+                .map((id) => trashFiles.find((item) => item.id === id))
+                .filter(Boolean);
+
+            if (!selectedItems.length) {
+                alert("Hãy chọn ít nhất 1 file trong thùng rác để khôi phục.");
+                return;
+            }
+
+            if (!confirm(`Khôi phục ${selectedItems.length} mục đã chọn?`)) return;
+
+            try {
+                const failures = [];
+                for (const item of selectedItems) {
+                    try {
+                        if (item.type === "folder") {
+                            await restoreFolder(item.id, true, true);
+                        } else {
+                            await restoreFile(item.id, true, true);
+                        }
+                    } catch (error) {
+                        failures.push(`ID ${item.id}: ${error.message || "Khôi phục thất bại"}`);
+                    }
+                }
+                clearSelection();
+                await loadTrashFiles();
+                await loadQuota();
+                if (failures.length) {
+                    alert(`Một số file không khôi phục được:\n- ${failures.join("\n- ")}`);
+                }
+            } catch (error) {
+                alert(error.message || "Khôi phục file thất bại");
+            }
+        }
+
+        async function permanentDeleteSelectedTrashFiles() {
+            const selectedItems = getSelectedTrashIds()
+                .map((id) => trashFiles.find((item) => item.id === id))
+                .filter(Boolean);
+
+            if (!selectedItems.length) {
+                alert("Hãy chọn ít nhất 1 file trong thùng rác để xóa vĩnh viễn.");
+                return;
+            }
+
+            if (!confirm(`Xóa vĩnh viễn ${selectedItems.length} mục đã chọn?`)) return;
+
+            try {
+                const failures = [];
+                for (const item of selectedItems) {
+                    try {
+                        if (item.type === "folder") {
+                            await permanentDeleteFolder(item.id, true, true, true);
+                        } else {
+                            await permanentDelete(item.id, true, true, true);
+                        }
+                    } catch (error) {
+                        failures.push(`ID ${item.id}: ${error.message || "Xóa vĩnh viễn thất bại"}`);
+                    }
+                }
+                clearSelection();
+                await loadTrashFiles();
+                await loadQuota();
+                if (failures.length) {
+                    alert(`Một số file không xóa được:\n- ${failures.join("\n- ")}`);
+                }
+            } catch (error) {
+                alert(error.message || "Xóa vĩnh viễn thất bại");
+            }
+        }
+
+        function updateFilesBulkActionButtons(selectedCount, selectableCount) {
+            const selectAllBtn = document.getElementById("filesSectionBtn");
+            const shareBtn = document.getElementById("sharedSectionBtn");
+            const deleteBtn = document.getElementById("trashSectionBtn");
+
+            if (selectAllBtn) {
+                const allSelected = selectableCount > 0 && selectedCount === selectableCount;
+                selectAllBtn.innerHTML = `<i class="bi ${allSelected ? "bi-dash-square" : "bi-check2-square"}"></i>`;
+                selectAllBtn.title = allSelected ? "Bỏ chọn tất cả mục" : "Chọn tất cả mục";
+                selectAllBtn.disabled = selectableCount === 0;
+            }
+
+            if (shareBtn) {
+                shareBtn.title = selectedFileIds.size > 0 ? `Chia sẻ ${selectedFileIds.size} file đã chọn` : "Chia sẻ file đã chọn";
+                shareBtn.disabled = selectedFileIds.size === 0;
+                shareBtn.classList.toggle("bulk-action-disabled", selectedFileIds.size === 0);
+            }
+
+            if (deleteBtn) {
+                deleteBtn.title = selectedCount > 0 ? `Xóa ${selectedCount} mục đã chọn` : "Xóa mục đã chọn";
+                deleteBtn.disabled = selectedCount === 0;
+                deleteBtn.classList.toggle("bulk-action-disabled", selectedCount === 0);
+            }
+        }
+
+        function updateTrashBulkActionButtons(trashSelectableFiles, trashSelectedCount) {
+            const trashSelectAllBtn = document.getElementById("trashSelectAllBtn");
+            const trashRestoreBtn = document.getElementById("trashRestoreBtn");
+            const trashPermanentDeleteBtn = document.getElementById("trashPermanentDeleteBtn");
+
+            if (trashSelectAllBtn) {
+                const trashAllSelected = trashSelectableFiles.length > 0 && trashSelectedCount === trashSelectableFiles.length;
+                trashSelectAllBtn.innerHTML = `<i class="bi ${trashAllSelected ? "bi-dash-square" : "bi-check2-square"}"></i> ${trashAllSelected ? "Bỏ chọn tất cả" : "Chọn tất cả"}`;
+                trashSelectAllBtn.disabled = trashSelectableFiles.length === 0;
+            }
+
+            if (trashRestoreBtn) {
+                trashRestoreBtn.disabled = trashSelectedCount === 0;
+                trashRestoreBtn.classList.toggle("bulk-action-disabled", trashSelectedCount === 0);
+                trashRestoreBtn.textContent = trashSelectedCount > 0 ? `Khôi phục (${trashSelectedCount})` : "Khôi phục";
+            }
+
+            if (trashPermanentDeleteBtn) {
+                trashPermanentDeleteBtn.disabled = trashSelectedCount === 0;
+                trashPermanentDeleteBtn.classList.toggle("bulk-action-disabled", trashSelectedCount === 0);
+                trashPermanentDeleteBtn.textContent = trashSelectedCount > 0 ? `Xóa vĩnh viễn (${trashSelectedCount})` : "Xóa vĩnh viễn";
+            }
+        }
+
+        function updateBulkActionButtons() {
+            const actionBar = document.getElementById("sectionSwitcher");
+            const trashBulkBar = document.getElementById("trashBulkActions");
+            const sharedBulkBar = document.getElementById("sharedBulkActions");
+            const selectedCount = selectedFileIds.size + selectedFolderIds.size;
+            const selectableCount = getSelectableFiles().length + getSelectableFolders().length;
+            const trashSelectableFiles = getSelectableTrashFiles();
+            const trashSelectedCount = trashSelectableFiles.filter((file) => selectedFileIds.has(file.id)).length;
+            const sharedSelectableLinks = getSelectableSharedLinks();
+            const sharedSelectedCount = sharedSelectableLinks.filter((item) => selectedSharedLinkIds.has(item.id)).length;
+
+            if (actionBar) {
+                actionBar.classList.toggle("d-none", currentSection !== "files");
+            }
+
+            if (trashBulkBar) {
+                trashBulkBar.classList.toggle("d-none", currentSection !== "trash");
+            }
+
+            if (sharedBulkBar) {
+                sharedBulkBar.classList.toggle("d-none", currentSection !== "shared");
+            }
+
+            updateFilesBulkActionButtons(selectedCount, selectableCount);
+            updateTrashBulkActionButtons(trashSelectableFiles, trashSelectedCount);
+            updateSharedBulkActionButtons(sharedSelectableLinks, sharedSelectedCount);
+        }
+
+        function updateSharedBulkActionButtons(sharedSelectableLinks, sharedSelectedCount) {
+            const sharedSelectAllBtn = document.getElementById("sharedSelectAllBtn");
+            const sharedDeleteSelectedBtn = document.getElementById("sharedDeleteSelectedBtn");
+            const sharedDeleteAllBtn = document.getElementById("sharedDeleteAllBtn");
+
+            if (sharedSelectAllBtn) {
+                const sharedAllSelected = sharedSelectableLinks.length > 0 && sharedSelectedCount === sharedSelectableLinks.length;
+                sharedSelectAllBtn.innerHTML = `<i class="bi ${sharedAllSelected ? "bi-dash-square" : "bi-check2-square"}"></i> ${sharedAllSelected ? "Bỏ chọn tất cả" : "Chọn tất cả"}`;
+                sharedSelectAllBtn.disabled = sharedSelectableLinks.length === 0;
+            }
+
+            if (sharedDeleteSelectedBtn) {
+                sharedDeleteSelectedBtn.disabled = sharedSelectedCount === 0;
+                sharedDeleteSelectedBtn.classList.toggle("bulk-action-disabled", sharedSelectedCount === 0);
+                sharedDeleteSelectedBtn.textContent = sharedSelectedCount > 0 ? `Xóa đã chọn (${sharedSelectedCount})` : "Xóa đã chọn";
+            }
+
+            if (sharedDeleteAllBtn) {
+                sharedDeleteAllBtn.disabled = sharedSelectableLinks.length === 0;
+                sharedDeleteAllBtn.classList.toggle("bulk-action-disabled", sharedSelectableLinks.length === 0);
+            }
         }
 
         async function loadQuota() {
@@ -318,28 +889,27 @@
             }
         }
 
-        async function loadFiles() {
+        async function loadFiles(folderId = null) {
             const container = document.getElementById("fileContainer");
+            clearSelection();
             container.innerHTML = `<div class="col-12 text-center text-secondary py-4">Đang tải tệp...</div>`;
             try {
+            const effectiveFolderId = folderId ?? currentFolderId ?? globalThis.currentFolderId ?? null;
+            const folderQuery = effectiveFolderId ? `?parent_id=${effectiveFolderId}` : "";
+
                 // Lấy thư mục
-                const folderRes = await fetch(`${API_BASE_URL}/folders/contents`, { headers: authHeaders() });
+                const folderRes = await fetch(`${API_BASE_URL}/folders/contents${folderQuery}`, { headers: authHeaders() });
                 if (folderRes.status === 401) return logout();
                 if (!folderRes.ok) throw new Error(`Load folders failed: ${folderRes.status}`);
                 const folderPayload = await folderRes.json();
                 const folders = Array.isArray(folderPayload?.folders) ? folderPayload.folders.map(f => ({
                     ...f,
                     type: "folder",
-                    size: 0,
+                    size: Number(f?.size ?? 0),
                     content_type: "folder"
                 })) : [];
 
-                // Lấy file
-                const fileRes = await fetch(`${API_BASE_URL}/files/list`, { headers: authHeaders() });
-                if (fileRes.status === 401) return logout();
-                if (!fileRes.ok) throw new Error(`Load files failed: ${fileRes.status}`);
-                const filePayload = await fileRes.json();
-                const fileItems = Array.isArray(filePayload?.items) ? filePayload.items.map(f => ({
+                const fileItems = Array.isArray(folderPayload?.files) ? folderPayload.files.map(f => ({
                     ...f,
                     type: "file"
                 })) : [];
@@ -354,6 +924,7 @@
 
         async function loadTrashFiles() {
             const container = document.getElementById("fileContainer");
+            clearSelection();
             container.innerHTML = `<div class="col-12 text-center text-secondary py-4">Đang tải thùng rác...</div>`;
             try {
                 const res = await fetch(`${API_BASE_URL}/files/trash`, { headers: authHeaders() });
@@ -370,6 +941,7 @@
 
         async function loadSharedLinks() {
             const container = document.getElementById("fileContainer");
+            clearSelection();
             container.innerHTML = `<div class="col-12 text-center text-secondary py-4">Đang tải danh sách link chia sẻ...</div>`;
             try {
                 const response = await fetch(`${API_BASE_URL}/shared-links`, { headers: authHeaders() });
@@ -395,6 +967,7 @@
 
         function renderFiles(list) {
             const container = document.getElementById("fileContainer");
+            updateBulkActionButtons();
             if (!list.length) {
                 container.innerHTML = `<div class="col-12"><div class="alert alert-light border mb-0">Chưa có tệp nào. Bấm "Mới" để tải lên.</div></div>`;
                 return;
@@ -407,6 +980,7 @@
                         <table class="table table-hover align-middle mb-0">
                             <thead class="table-light">
                                 <tr>
+                                    <th style="width: 44px;"></th>
                                     <th>Tên tệp</th>
                                     <th>Dung lượng</th>
                                     <th>Cập nhật</th>
@@ -414,20 +988,35 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                ${list.map(file => `
-                                <tr>
-                                    <td><i class="bi ${detectIcon(file.name, file.content_type)} me-2"></i>${file.name}</td>
+                                ${list.map((file) => {
+                    const safeName = escapeInlineText(file.name);
+                    const isSelected = file.type === "file" ? selectedFileIds.has(file.id) : selectedFolderIds.has(file.id);
+                    let selectionCell = "";
+                    let renameButton = "";
+
+                    if (file.type === "file") {
+                        selectionCell = `<input type="checkbox" class="form-check-input file-select-checkbox" ${isSelected ? "checked" : ""} onclick="event.stopPropagation(); toggleFileSelection(${file.id}, this.checked)">`;
+                        renameButton = `<button class='btn btn-sm btn-outline-secondary' onclick='openRenameModal(${file.id}, "${safeName}", "file")'>Đổi tên</button>
+                                        <button class='btn btn-sm btn-outline-success' onclick='shareItem(${file.id})'>Share</button>`;
+                    } else {
+                            selectionCell = `<input type="checkbox" class="form-check-input file-select-checkbox" ${isSelected ? "checked" : ""} onclick="event.stopPropagation(); toggleFolderSelection(${file.id}, this.checked)">`;
+                            renameButton = `<button class='btn btn-sm btn-outline-secondary' onclick='openRenameModal(${file.id}, "${safeName}", "folder")'>Đổi tên</button>
+                                        <button class='btn btn-sm btn-outline-info' onclick='shareItem(${file.id})'>Share</button>`;
+                    }
+
+                    return `
+                                <tr class="${isSelected ? "file-row-selected" : ""}">
+                                    <td>${selectionCell}</td>
+                                    <td><i class="bi ${detectIcon(file.name, file.content_type)} me-2"></i>${safeName}</td>
                                     <td>${formatSize(file.size)}</td>
                                     <td>${formatDateTime(file.updated_at)}</td>
                                     <td class="text-end">
-                                        <button class="btn btn-sm btn-outline-primary" onclick="openItem(${file.id}, '${file.name.replace(/'/g, "&#39;")}', '${file.type}')">Mở</button>
-                                        ${file.type === "folder"
-                        ? `<button class='btn btn-sm btn-outline-secondary' onclick='openRenameModal(${file.id}, "${file.name.replace(/'/g, "&#39;")}", "folder")'>Đổi tên</button>`
-                        : `<button class='btn btn-sm btn-outline-secondary' onclick='openRenameModal(${file.id}, "${file.name.replace(/'/g, "&#39;")}", "file")'>Đổi tên</button>
-                                        <button class='btn btn-sm btn-outline-success' onclick='shareItem(${file.id})'>Share</button>`}
+                                        <button class="btn btn-sm btn-outline-primary" onclick="openItem(${file.id}, '${safeName}', '${file.type}')">Mở</button>
+                                        ${renameButton}
                                         <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${file.id})">Xóa</button>
                                     </td>
-                                </tr>`).join("")}
+                                </tr>`;
+                }).join("")}
                             </tbody>
                         </table>
                     </div>
@@ -435,25 +1024,37 @@
                 return;
             }
 
-            container.innerHTML = list.map(file => {
+            container.innerHTML = list.map((file) => {
+                const safeName = escapeInlineText(file.name);
                 if (file.type === "folder") {
+                    const isSelected = selectedFolderIds.has(file.id);
                     return `
                     <div class="col-md-3 mb-4">
-                        <div class="card file-card p-3 text-center position-relative" onclick="openItem(${file.id}, '${file.name.replace(/'/g, "&#39;")}', 'folder')">
+                        <div class="card file-card file-card-selectable p-3 text-center position-relative ${isSelected ? "file-card-selected" : ""}" onclick="openItem(${file.id}, '${safeName}', 'folder')">
+                            <div class="position-absolute top-0 start-0 m-2" onclick="event.stopPropagation();">
+                                <input type="checkbox" class="form-check-input file-select-checkbox" ${isSelected ? "checked" : ""} onclick="event.stopPropagation(); toggleFolderSelection(${file.id}, this.checked)">
+                            </div>
                             <i class="bi bi-folder-fill fs-1 text-warning"></i>
-                            <h6 class="text-truncate" title="${file.name}">${file.name}</h6>
-                            <div class="d-flex gap-2 mt-2">
-                                <button class="btn btn-sm btn-outline-secondary w-50" onclick="event.stopPropagation(); openRenameModal(${file.id}, '${file.name.replace(/'/g, "&#39;")}', 'folder')">Đổi tên</button>
-                                <button class="btn btn-sm btn-outline-danger w-50" onclick="event.stopPropagation(); deleteItem(${file.id}, 'folder')">Xóa</button>
+                            <h6 class="text-truncate" title="${safeName}">${safeName}</h6>
+                                <div class="small text-muted mb-2">${formatSize(file.size)}</div>
+                            <div class="d-flex gap-2 mt-2" style="flex-wrap: wrap;">
+                                <button class="btn btn-sm btn-outline-secondary flex-fill" onclick="event.stopPropagation(); openRenameModal(${file.id}, '${safeName}', 'folder')">Đổi tên</button>
+                                <button class="btn btn-sm btn-outline-info flex-fill" onclick="event.stopPropagation(); shareItem(${file.id})">Share</button>
+                                <button class="btn btn-sm btn-outline-danger flex-fill" onclick="event.stopPropagation(); deleteItem(${file.id}, 'folder')">Xóa</button>
                             </div>
                         </div>
                     </div>`;
-                } else {
-                    return `
+                }
+
+                const isSelected = selectedFileIds.has(file.id);
+                return `
                     <div class="col-md-3 mb-4">
-                        <div class="card file-card p-3 text-center position-relative">
+                        <div class="card file-card file-card-selectable p-3 text-center position-relative ${isSelected ? "file-card-selected" : ""}">
+                            <div class="position-absolute top-0 start-0 m-2" onclick="event.stopPropagation();">
+                                <input type="checkbox" class="form-check-input file-select-checkbox" ${isSelected ? "checked" : ""} onclick="event.stopPropagation(); toggleFileSelection(${file.id}, this.checked)">
+                            </div>
                             <i class="bi ${detectIcon(file.name, file.content_type)} fs-1"></i>
-                            <h6 class="text-truncate" title="${file.name}">${file.name}</h6>
+                            <h6 class="text-truncate" title="${safeName}">${safeName}</h6>
                             <div class="small text-muted mb-2">${formatSize(file.size)}</div>
                             <div class="dropdown d-flex justify-content-center">
                                 <button class="btn btn-light border dropdown-toggle" type="button" id="fileActionsDropdown${file.id}" data-bs-toggle="dropdown" aria-expanded="false">
@@ -461,14 +1062,13 @@
                                 </button>
                                 <ul class="dropdown-menu" aria-labelledby="fileActionsDropdown${file.id}">
                                     <li><a class="dropdown-item" href="#" onclick="openItem(${file.id});return false;">Xem trước</a></li>
-                                    <li><a class="dropdown-item" href="#" onclick="openRenameModal(${file.id}, '${file.name.replace(/'/g, "&#39;")}', 'file');return false;">Đổi tên</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="openRenameModal(${file.id}, '${safeName}', 'file');return false;">Đổi tên</a></li>
                                     <li><a class="dropdown-item" href="#" onclick="shareItem(${file.id});return false;">Share</a></li>
                                     <li><a class="dropdown-item text-danger" href="#" onclick="deleteItem(${file.id});return false;">Xóa</a></li>
                                 </ul>
                             </div>
                         </div>
                     </div>`;
-                }
             }).join("");
         }
 
@@ -479,22 +1079,45 @@
                 return;
             }
 
-            container.innerHTML = list.map(file => `
+            const selectedCount = list.filter((file) => selectedFileIds.has(file.id)).length;
+
+            container.innerHTML = `
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                    <div class="text-secondary small">Đã chọn ${selectedCount}/${list.length} mục</div>
+                    <div class="small text-secondary">Có thể chọn nhiều mục trong thùng rác</div>
+                </div>
+            </div>
+            ${list.map(file => {
+                const isSelected = selectedFileIds.has(file.id);
+                const isFolder = file.type === "folder";
+                const primaryAction = isFolder
+                    ? `<button class="btn btn-primary flex-fill" onclick="restoreFolder(${file.id})">Khôi phục</button>`
+                    : `<button class="btn btn-primary flex-fill" onclick="restoreFile(${file.id})">Khôi phục</button>`;
+                const dangerAction = isFolder
+                    ? `<button class="btn btn-outline-danger flex-fill" onclick="permanentDeleteFolder(${file.id})">Xóa vĩnh viễn</button>`
+                    : `<button class="btn btn-outline-danger flex-fill" onclick="permanentDelete(${file.id})">Xóa vĩnh viễn</button>`;
+                return `
             <div class="col-12 col-lg-6 col-xxl-4">
-                <div class="card p-3 h-100 shadow-sm border-0">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <div class="fw-semibold"><i class="bi ${detectIcon(file.name, file.content_type)} me-2"></i>${file.name}</div>
-                            <div class="small text-secondary">${formatDateTime(file.updated_at)}</div>
+                <div class="card p-3 h-100 shadow-sm border-0 ${isSelected ? "file-card-selected" : ""}">
+                    <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                        <div class="d-flex align-items-start gap-2">
+                            <input type="checkbox" class="form-check-input file-select-checkbox mt-1" ${isSelected ? "checked" : ""}
+                                onclick="event.stopPropagation(); toggleTrashSelection(${file.id}, this.checked)">
+                            <div>
+                                <div class="fw-semibold"><i class="bi ${detectIcon(file.name, file.content_type)} me-2"></i>${file.name}</div>
+                                <div class="small text-secondary">${formatDateTime(file.updated_at)}</div>
+                            </div>
                         </div>
                         <span class="badge text-bg-light text-secondary">${formatSize(file.size)}</span>
                     </div>
                     <div class="d-flex gap-2 mt-3">
-                        <button class="btn btn-primary flex-fill" onclick="restoreFile(${file.id})">Khôi phục</button>
-                        <button class="btn btn-outline-danger flex-fill" onclick="permanentDelete(${file.id})">Xóa vĩnh viễn</button>
+                        ${primaryAction}
+                        ${dangerAction}
                     </div>
                 </div>
-            </div>`).join("");
+            </div>`;
+            }).join("")}`;
         }
 
         function renderSharedLinks() {
@@ -504,12 +1127,19 @@
                 return;
             }
 
+            const selectedCount = sharedLinks.filter((item) => selectedSharedLinkIds.has(item.id)).length;
+
             container.innerHTML = `
             <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                    <div class="text-secondary small">Đã chọn ${selectedCount}/${sharedLinks.length} link</div>
+                    <div class="small text-secondary">Có thể chọn nhiều link để xóa hàng loạt</div>
+                </div>
                 <div class="table-responsive bg-white rounded shadow-sm">
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr>
+                                <th style="width: 44px;"></th>
                                 <th>File</th>
                                 <th>Link chia sẻ</th>
                                 <th>Ngày hết hạn</th>
@@ -519,12 +1149,16 @@
                         </thead>
                         <tbody>
                             ${sharedLinks.map(link => `
-                            <tr>
+                            <tr class="${selectedSharedLinkIds.has(link.id) ? "file-row-selected" : ""}">
+                                <td>
+                                    <input type="checkbox" class="form-check-input file-select-checkbox" ${selectedSharedLinkIds.has(link.id) ? "checked" : ""}
+                                        onclick="event.stopPropagation(); toggleSharedSelection(${link.id}, this.checked)">
+                                </td>
                                 <td><div class="fw-semibold">${link.fileName}</div><div class="small text-secondary">${formatSize(link.fileSize)}</div></td>
                                 <td><a href="${link.shareLink}" target="_blank" rel="noreferrer">${link.shareLink}</a></td>
                                 <td>${link.expiresAt ? formatDateTime(link.expiresAt) : "Không hết hạn"}${link.isExpired ? " <span class='badge text-bg-danger ms-1'>Hết hạn</span>" : ""}</td>
                                 <td>${formatDateTime(link.createdAt)}</td>
-                                <td class="text-end"><button class="btn btn-outline-danger btn-sm" onclick="revokeLink(${link.id})">Thu hồi</button></td>
+                                <td class="text-end"><button class="btn btn-outline-danger btn-sm" onclick="revokeLink(${link.id})">Xóa</button></td>
                             </tr>`).join("")}
                         </tbody>
                     </table>
@@ -532,15 +1166,20 @@
             </div>`;
         }
 
+        function updateSectionHeader(title) {
+            if (!title) return;
+            if (currentSection === "files") title.textContent = "Tệp của tôi";
+            if (currentSection === "shared") title.textContent = "Đã chia sẻ";
+            if (currentSection === "trash") title.textContent = "Thùng rác";
+        }
+
         function setActiveNav() {
             const filesNav = document.getElementById("nav-files");
             const uploadNav = document.getElementById("nav-upload");
             const sharedNav = document.getElementById("nav-shared");
             const trashNav = document.getElementById("nav-trash");
-            const filesBtn = document.getElementById("filesSectionBtn");
-            const sharedBtn = document.getElementById("sharedSectionBtn");
-            const trashBtn = document.getElementById("trashSectionBtn");
             const title = document.getElementById("sectionTitle");
+            const goBackBtn = document.getElementById("goBackBtn");
             const isUploadPage = globalThis.location.pathname.toLowerCase().endsWith("uploadfile.html");
 
             if (filesNav) filesNav.classList.toggle("active", !isUploadPage && currentSection === "files");
@@ -548,18 +1187,11 @@
             if (sharedNav) sharedNav.classList.toggle("active", !isUploadPage && currentSection === "shared");
             if (trashNav) trashNav.classList.toggle("active", !isUploadPage && currentSection === "trash");
 
-            if (filesBtn) filesBtn.classList.toggle("active", currentSection === "files");
-            if (sharedBtn) sharedBtn.classList.toggle("active", currentSection === "shared");
-            if (trashBtn) trashBtn.classList.toggle("active", currentSection === "trash");
-            if (title) {
-                if (currentSection === "files") title.textContent = "Tệp của tôi";
-                if (currentSection === "shared") title.textContent = "Đã chia sẻ";
-                if (currentSection === "trash") title.textContent = "Thùng rác";
-            }
+            updateBulkActionButtons();
+            updateSectionHeader(title);
 
-            const breadcrumb = document.getElementById("breadcrumb");
-            if (breadcrumb) {
-                breadcrumb.innerHTML = `<li class="breadcrumb-item active">Trang chủ</li>`;
+            if (goBackBtn) {
+                goBackBtn.classList.toggle("d-none", currentSection !== "files" || currentFolderId === null);
             }
         }
 
@@ -571,33 +1203,148 @@
 
         async function switchSection(section) {
             currentSection = section;
+            if (section !== "files") {
+                clearSelection();
+            }
             setActiveNav();
             await renderActiveSection();
         }
 
+        async function goToRoot() {
+            currentFolderId = null;
+            currentPath = [{ id: null, name: "Home" }];
+            syncFolderState();
+            clearSelection();
+            setActiveNav();
+            await loadFiles();
+            if (typeof renderBreadcrumb === 'function') renderBreadcrumb();
+        }
+
+        async function goBackFolder() {
+            if (currentSection !== "files" || currentFolderId === null) return;
+
+            const parentPath = currentPath.length > 1 ? currentPath.slice(0, -1) : [{ id: null, name: "Home" }];
+            currentPath = parentPath;
+            currentFolderId = parentPath.length > 1 ? parentPath[parentPath.length - 1].id : null;
+            syncFolderState();
+            clearSelection();
+            setActiveNav();
+            await loadFiles();
+            if (typeof renderBreadcrumb === 'function') renderBreadcrumb();
+        }
+
+        function renderBreadcrumb() {
+            const breadcrumb = document.getElementById("breadcrumb");
+            if (!breadcrumb) return;
+
+            if (currentSection !== "files") {
+                breadcrumb.innerHTML = "";
+                return;
+            }
+
+            const items = Array.isArray(currentPath) && currentPath.length ? currentPath : [{ id: null, name: "Home" }];
+            breadcrumb.innerHTML = items.map((item, index) => {
+                const isLast = index === items.length - 1;
+                const label = item.name || "Home";
+                if (isLast) {
+                    return `<li class="breadcrumb-item active">${label}</li>`;
+                }
+                return `<li class="breadcrumb-item"><a href="#" onclick="goToFolder(${index}); return false;">${label}</a></li>`;
+            }).join("");
+        }
+
+        async function goToFolder(index) {
+            if (currentSection !== "files") return;
+
+            if (index < 0 || index >= currentPath.length) return;
+
+            currentPath = currentPath.slice(0, index + 1);
+            currentFolderId = currentPath.length > 1 ? currentPath[currentPath.length - 1].id : null;
+            syncFolderState();
+            clearSelection();
+            setActiveNav();
+            await loadFiles();
+            renderBreadcrumb();
+        }
+
+        async function deleteFileById(id) {
+            const res = await fetch(`${API_BASE_URL}/files/${id}`, { method: "DELETE", headers: authHeaders() });
+            if (res.status === 401) return logout();
+            if (!res.ok) throw new Error("Xóa file thất bại");
+        }
+
+        async function deleteFolderById(id) {
+            const res = await fetch(`${API_BASE_URL}/folders/${id}`, { method: "DELETE", headers: authHeaders() });
+            if (res.status === 401) return logout();
+            if (!res.ok) throw new Error("Xóa thư mục thất bại");
+        }
+
+        async function deleteSelectedFiles() {
+            const selectedFileList = Array.from(selectedFileIds);
+            const selectedFolderList = Array.from(selectedFolderIds);
+            const totalSelected = selectedFileList.length + selectedFolderList.length;
+
+            if (!totalSelected) {
+                alert("Hãy chọn ít nhất 1 mục để xóa.");
+                return;
+            }
+
+            if (!confirm(`Xóa ${totalSelected} mục đã chọn và chuyển vào thùng rác?`)) return;
+
+            try {
+                for (const fileId of selectedFileList) {
+                    await deleteFileById(fileId);
+                }
+
+                for (const folderId of selectedFolderList) {
+                    await deleteFolderById(folderId);
+                }
+
+                clearSelection();
+                await loadFiles();
+                await loadQuota();
+            } catch (error) {
+                alert(error.message || "Xóa mục thất bại");
+            }
+        }
+
+        async function deleteFolderItem(folderId) {
+            const preservedFolderId = currentFolderId;
+            const preservedPath = Array.isArray(currentPath) ? currentPath.map((item) => ({ id: item?.id ?? null, name: item?.name || "Home" })) : [{ id: null, name: "Home" }];
+            await deleteFolderById(folderId);
+
+            currentFolderId = preservedFolderId;
+            currentPath = preservedPath;
+            syncFolderState();
+            setActiveNav();
+
+            await loadFiles(preservedFolderId);
+            if (typeof renderBreadcrumb === 'function') renderBreadcrumb();
+            await loadQuota();
+        }
+
+        async function deleteFileItem(fileId) {
+            await deleteFileById(fileId);
+            await loadFiles();
+            await loadQuota();
+        }
+
         async function deleteItem(id, type = 'file') {
-            if (type === 'folder') {
-                if (!confirm("Bạn có chắc muốn xóa thư mục này và toàn bộ file bên trong?")) return;
-                try {
-                    const res = await fetch(`${API_BASE_URL}/folders/${id}`, { method: "DELETE", headers: authHeaders() });
-                    if (res.status === 401) return logout();
-                    if (!res.ok) throw new Error("Xóa thư mục thất bại");
-                    await loadFiles();
-                    await loadQuota();
-                } catch (e) {
-                    alert(e.message || "Xóa thư mục thất bại");
+            const isFolder = type === 'folder';
+            const confirmMessage = isFolder
+                ? "Bạn có chắc muốn xóa thư mục này và toàn bộ file bên trong?"
+                : "Chuyển file vào thùng rác?";
+
+            if (!confirm(confirmMessage)) return;
+
+            try {
+                if (isFolder) {
+                    await deleteFolderItem(id);
+                } else {
+                    await deleteFileItem(id);
                 }
-            } else {
-                if (!confirm("Chuyển file vào thùng rác?")) return;
-                try {
-                    const res = await fetch(`${API_BASE_URL}/files/${id}`, { method: "DELETE", headers: authHeaders() });
-                    if (res.status === 401) return logout();
-                    if (!res.ok) throw new Error("Xóa file thất bại");
-                    await loadFiles();
-                    await loadQuota();
-                } catch (e) {
-                    alert(e.message || "Xóa file thất bại");
-                }
+            } catch (e) {
+                alert(e.message || (isFolder ? "Xóa thư mục thất bại" : "Xóa file thất bại"));
             }
         }
 
@@ -619,144 +1366,280 @@
             return String(value).replace(" ", "T").slice(0, 16);
         }
 
-        function openShareModal(id) {
-            pendingShareFileId = id;
+        function openShareModal(itemIds, itemType = "file") {
+            pendingShareItemIds = Array.isArray(itemIds) ? itemIds.slice() : [itemIds];
+            pendingShareItemType = itemType;
             const noExpiryInput = document.getElementById("shareNoExpiry");
             const expiryInput = document.getElementById("shareExpiryAt");
+            const modalTitle = document.getElementById("shareExpiryModalLabel");
             noExpiryInput.checked = false;
             expiryInput.disabled = false;
             expiryInput.min = getNowLocalValue();
             expiryInput.value = getDefaultExpiryLocalValue();
+            if (modalTitle) {
+                const itemTypeName = itemType === "folder" ? "thư mục" : "file";
+                modalTitle.textContent = pendingShareItemIds.length > 1
+                    ? `Tạo link chia sẻ cho ${pendingShareItemIds.length} ${itemTypeName}`
+                    : `Tạo link chia sẻ ${itemTypeName}`;
+            }
             shareExpiryModal.show();
         }
 
         async function shareItem(id) {
-            openShareModal(id);
+            // Determine if this is a file or folder based on context
+            // Files are in the selectedFileIds set, so if it's not there, assume it's a folder
+            const isFile = selectedFileIds.has(id);
+            const itemType = isFile ? "file" : "folder";
+            openShareModal([id], itemType);
+        }
+
+        function shareSelectedFiles() {
+            const selectedIds = Array.from(selectedFileIds);
+            if (!selectedIds.length) {
+                alert("Hãy chọn ít nhất 1 file để chia sẻ.");
+                return;
+            }
+            openShareModal(selectedIds);
+        }
+
+        function buildSharePayloadFromForm() {
+            const noExpiryInput = document.getElementById("shareNoExpiry");
+            const expiryInput = document.getElementById("shareExpiryAt");
+            const payload = {};
+
+            if (noExpiryInput.checked) {
+                return { payload, selectedExpiry: null, expiryInput };
+            }
+
+            if (!expiryInput.value) {
+                alert("Vui lòng chọn ngày giờ hết hạn hoặc tick 'Không đặt thời hạn'.");
+                return null;
+            }
+
+            const selectedExpiry = new Date(expiryInput.value);
+            if (Number.isNaN(selectedExpiry.getTime())) {
+                alert("Ngày giờ hết hạn không hợp lệ.");
+                return null;
+            }
+
+            const now = new Date();
+            if (selectedExpiry <= now) {
+                alert("Ngày giờ hết hạn phải lớn hơn thời điểm hiện tại.");
+                return null;
+            }
+
+            payload.expiration_at = expiryInput.value;
+            const diffMinutes = Math.max(1, Math.ceil((selectedExpiry.getTime() - now.getTime()) / 60000));
+            payload.expiration_value = diffMinutes;
+            payload.expiration_unit = "minute";
+            return { payload, selectedExpiry, expiryInput };
+        }
+
+        async function createShareLinkForItem(itemId, basePayload, itemType = "file") {
+            const payload = { ...basePayload };
+            if (itemType === "file") {
+                payload.file_id = itemId;
+            } else if (itemType === "folder") {
+                payload.folder_id = itemId;
+            }
+            
+            const res = await fetch(`${API_BASE_URL}/shared-links`, {
+                method: "POST",
+                headers: {
+                    ...authHeaders(),
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            });
+
+            if (res.status === 401) return { unauthorized: true };
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err?.detail || "Tạo link share thất bại");
+            }
+
+            return res.json();
+        }
+
+        async function createShareLinksForItems(itemIds, basePayload, itemType = "file") {
+            const results = await Promise.allSettled(itemIds.map((itemId) => createShareLinkForItem(itemId, basePayload, itemType)));
+            const createdLinks = [];
+            const failedMessages = [];
+
+            for (const result of results) {
+                if (result.status === "fulfilled") {
+                    if (result.value?.unauthorized) return { unauthorized: true };
+                    createdLinks.push(result.value);
+                } else {
+                    failedMessages.push(result.reason?.message || "Tạo link share thất bại");
+                }
+            }
+
+            return { createdLinks, failedMessages };
+        }
+
+        async function showSingleShareResult(data, selectedExpiry, expiryInput) {
+            const shareLink = data.public_url || "";
+            const expiryText = data.expires_at ? formatDateTime(data.expires_at) : "Không đặt hạn";
+            alert(`Đã tạo link share.\nHết hạn: ${expiryText}\n${shareLink}`);
+
+            if (selectedExpiry && data.expires_at) {
+                const selectedKey = toMinuteKey(expiryInput.value);
+                const serverKey = toMinuteKey(data.expires_at);
+                if (selectedKey && serverKey && selectedKey !== serverKey) {
+                    alert(`Cảnh báo: thời gian hết hạn server trả về lệch so với thời gian bạn chọn.\nBạn chọn: ${selectedKey}\nServer trả về: ${serverKey}`);
+                }
+            }
+        }
+
+        async function showMultipleShareResult(createdLinks) {
+            alert(`Đã tạo link share cho ${createdLinks.length} file.`);
+        }
+
+        async function finalizeShareCreation({ createdLinks, failedMessages }, selectedExpiry, expiryInput) {
+            if (!createdLinks.length) {
+                throw new Error(failedMessages[0] || "Tạo link share thất bại");
+            }
+
+            const shareText = createdLinks.map((item) => item.public_url || "").filter(Boolean).join("\n");
+            if (shareText) {
+                try {
+                    await navigator.clipboard.writeText(shareText);
+                } catch (error) {
+                    console.debug('Clipboard write failed:', error);
+                }
+            }
+
+            if (createdLinks.length === 1) {
+                await showSingleShareResult(createdLinks[0], selectedExpiry, expiryInput);
+            } else {
+                await showMultipleShareResult(createdLinks);
+            }
+
+            if (failedMessages.length) {
+                alert(`Một số file không tạo được link share:\n- ${failedMessages.join("\n- ")}`);
+            }
+
+            shareExpiryModal.hide();
+            clearSelection();
+            pendingShareItemIds = [];
+            if (currentSection === "shared") {
+                await loadSharedLinks();
+            }
         }
 
         async function submitShareFromModal() {
-            if (!pendingShareFileId) return;
+            if (!pendingShareItemIds.length) return;
             try {
-                const noExpiryInput = document.getElementById("shareNoExpiry");
-                const expiryInput = document.getElementById("shareExpiryAt");
+                const prepared = buildSharePayloadFromForm();
+                if (!prepared) return;
 
-                const payload = { file_id: pendingShareFileId };
-                let selectedExpiry = null;
-                if (!noExpiryInput.checked) {
-                    if (!expiryInput.value) {
-                        alert("Vui lòng chọn ngày giờ hết hạn hoặc tick 'Không đặt thời hạn'.");
-                        return;
-                    }
-
-                    selectedExpiry = new Date(expiryInput.value);
-                    if (Number.isNaN(selectedExpiry.getTime())) {
-                        alert("Ngày giờ hết hạn không hợp lệ.");
-                        return;
-                    }
-
-                    const now = new Date();
-                    if (selectedExpiry <= now) {
-                        alert("Ngày giờ hết hạn phải lớn hơn thời điểm hiện tại.");
-                        return;
-                    }
-
-                    // Primary field for new backend logic.
-                    payload.expiration_at = expiryInput.value;
-
-                    // Backward-compatible fallback for stale backend processes.
-                    const diffMinutes = Math.max(1, Math.ceil((selectedExpiry.getTime() - now.getTime()) / 60000));
-                    payload.expiration_value = diffMinutes;
-                    payload.expiration_unit = "minute";
-                }
-
-                const res = await fetch(`${API_BASE_URL}/shared-links`, {
-                    method: "POST",
-                    headers: {
-                        ...authHeaders(),
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(payload),
-                });
-
-                if (res.status === 401) return logout();
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    throw new Error(err?.detail || "Tạo link share thất bại");
-                }
-
-                const data = await res.json();
-                const shareLink = data.public_url || "";
-
-                try {
-                    await navigator.clipboard.writeText(shareLink);
-                } catch { }
-
-                const expiryText = data.expires_at ? formatDateTime(data.expires_at) : "Không đặt hạn";
-                alert(`Đã tạo link share.\nHết hạn: ${expiryText}\n${shareLink}`);
-
-                if (selectedExpiry && data.expires_at) {
-                    const selectedKey = toMinuteKey(expiryInput.value);
-                    const serverKey = toMinuteKey(data.expires_at);
-                    if (selectedKey && serverKey && selectedKey !== serverKey) {
-                        alert(`Cảnh báo: thời gian hết hạn server trả về lệch so với thời gian bạn chọn.\nBạn chọn: ${selectedKey}\nServer trả về: ${serverKey}`);
-                    }
-                }
-
-                shareExpiryModal.hide();
-                if (currentSection === "shared") {
-                    await loadSharedLinks();
-                }
+                const { payload, selectedExpiry, expiryInput } = prepared;
+                const outcome = await createShareLinksForItems(pendingShareItemIds, payload, pendingShareItemType);
+                if (outcome.unauthorized) return logout();
+                await finalizeShareCreation(outcome, selectedExpiry, expiryInput);
             } catch (error) {
                 alert(error.message || "Tạo link share thất bại");
             }
         }
 
-        async function restoreFile(id) {
+        async function restoreFile(id, skipRefresh = false, silent = false) {
             try {
                 const res = await fetch(`${API_BASE_URL}/files/${id}/restore`, { method: "POST", headers: authHeaders() });
                 if (res.status === 401) return logout();
                 if (!res.ok) throw new Error("Khôi phục file thất bại");
-                await loadTrashFiles();
+                if (!skipRefresh) {
+                    await loadTrashFiles();
+                }
             } catch (e) {
-                alert(e.message || "Khôi phục thất bại");
+                if (!silent) {
+                    alert(e.message || "Khôi phục thất bại");
+                }
+                throw e;
             }
         }
 
-        async function permanentDelete(id) {
-            if (!confirm("Xóa vĩnh viễn file này?")) return;
+        async function permanentDelete(id, skipRefresh = false, skipConfirm = false, silent = false) {
+            if (!skipConfirm && !confirm("Xóa vĩnh viễn file này?")) return;
             try {
                 const res = await fetch(`${API_BASE_URL}/files/${id}/permanent`, { method: "DELETE", headers: authHeaders() });
                 if (res.status === 401) return logout();
                 if (!res.ok) throw new Error("Xóa vĩnh viễn thất bại");
-                await loadTrashFiles();
-                await loadQuota();
+                if (!skipRefresh) {
+                    await loadTrashFiles();
+                    await loadQuota();
+                }
             } catch (e) {
-                alert(e.message || "Xóa vĩnh viễn thất bại");
+                if (!silent) {
+                    alert(e.message || "Xóa vĩnh viễn thất bại");
+                }
+                throw e;
             }
         }
 
-        async function revokeLink(id) {
-            if (!confirm("Bạn có chắc muốn thu hồi link chia sẻ này?")) return;
+        async function restoreFolder(id, skipRefresh = false, silent = false) {
+            try {
+                const res = await fetch(`${API_BASE_URL}/folders/${id}/restore`, { method: "POST", headers: authHeaders() });
+                if (res.status === 401) return logout();
+                if (!res.ok) throw new Error("Khôi phục thư mục thất bại");
+                if (!skipRefresh) {
+                    await loadTrashFiles();
+                }
+            } catch (e) {
+                if (!silent) {
+                    alert(e.message || "Khôi phục thư mục thất bại");
+                }
+                throw e;
+            }
+        }
+
+        async function permanentDeleteFolder(id, skipRefresh = false, skipConfirm = false, silent = false) {
+            if (!skipConfirm && !confirm("Xóa vĩnh viễn thư mục này?")) return;
+            try {
+                const res = await fetch(`${API_BASE_URL}/folders/${id}/permanent`, { method: "DELETE", headers: authHeaders() });
+                if (res.status === 401) return logout();
+                if (!res.ok) throw new Error("Xóa vĩnh viễn thư mục thất bại");
+                if (!skipRefresh) {
+                    await loadTrashFiles();
+                    await loadQuota();
+                }
+            } catch (e) {
+                if (!silent) {
+                    alert(e.message || "Xóa vĩnh viễn thư mục thất bại");
+                }
+                throw e;
+            }
+        }
+
+        async function revokeLink(id, skipRefresh = false, skipConfirm = false, silent = false) {
+            if (!skipConfirm && !confirm("Bạn có chắc muốn xóa link chia sẻ này?")) return;
             try {
                 const response = await fetch(`${API_BASE_URL}/shared-links/${id}`, { method: "DELETE", headers: authHeaders() });
                 if (response.status === 401) return logout();
                 if (!response.ok) throw new Error("Thu hồi link thất bại");
-                await loadSharedLinks();
+                if (!skipRefresh) {
+                    await loadSharedLinks();
+                }
             } catch (error) {
-                alert(error.message || "Thu hồi link thất bại");
+                if (!silent) {
+                    alert(error.message || "Thu hồi link thất bại");
+                }
+                throw error;
             }
         }
 
-        function openItem(id) {
+        function openItem(id, name, type) {
             // Nhận đủ tham số: id, name, type
             const file = files.find(item => item.id === id);
             if (!file) return;
-            if (file.type === 'folder' || (typeof type !== 'undefined' && type === 'folder')) {
+            if (file.type === 'folder' || (type !== undefined && type === 'folder')) {
                 // Chuyển vào thư mục
-                if (typeof currentPath === 'undefined') window.currentPath = [{ id: null, name: 'Home' }];
-                if (typeof currentFolderId === 'undefined') window.currentFolderId = null;
+                if (currentPath === undefined) globalThis.currentPath = [{ id: null, name: 'Home' }];
+                if (currentFolderId === undefined) globalThis.currentFolderId = null;
                 currentFolderId = id;
-                currentPath.push({ id: id, name: name });
+                currentPath.push({ id: id, name: name || file.name });
+                syncFolderState();
+                if (typeof setActiveNav === 'function') setActiveNav();
                 if (typeof loadFiles === 'function') loadFiles();
                 if (typeof renderBreadcrumb === 'function') renderBreadcrumb();
             } else {
@@ -777,33 +1660,225 @@
             }
         }
 
-        async function uploadSelectedFiles(event) {
-            const selectedFiles = Array.from(event.target.files || []);
-            if (!selectedFiles.length) return;
+        function parseUploadContext(target) {
+            const contextFolderIdRaw = target?.dataset?.folderId;
+            const contextPathRaw = target?.dataset?.path;
 
-            for (const file of selectedFiles) {
-                const formData = new FormData();
-                formData.append("file", file);
-                const res = await fetch(`${API_BASE_URL}/files/upload`, {
+            let resolvedPath = getUploadContextSnapshot().path;
+            if (contextPathRaw) {
+                try {
+                    const parsedPath = JSON.parse(contextPathRaw);
+                    if (Array.isArray(parsedPath) && parsedPath.length) {
+                        resolvedPath = parsedPath.map((item) => ({ id: item?.id ?? null, name: item?.name || "Home" }));
+                    }
+                } catch (error) {
+                    console.debug("Khong parse duoc upload context path", error);
+                }
+            }
+
+            const currentNode = resolvedPath[resolvedPath.length - 1] || { id: null, name: "Home" };
+            let activeFolderId = currentNode.id ?? null;
+
+            if (contextFolderIdRaw !== undefined && contextFolderIdRaw !== "") {
+                const parsedFolderId = Number(contextFolderIdRaw);
+                if (Number.isFinite(parsedFolderId)) {
+                    activeFolderId = parsedFolderId;
+                }
+            }
+
+            return { resolvedPath, activeFolderId };
+        }
+
+        function showUploadToast(successCount, failureCount, failedFiles = []) {
+            const container = document.getElementById('upload-toast-container');
+            if (!container) return;
+
+            const toastId = `upload-toast-${Date.now()}`;
+            const bgColor = failureCount > 0 ? 'bg-warning' : 'bg-success';
+            const icon = failureCount > 0 ? 'bi-exclamation-triangle' : 'bi-check-circle';
+
+            let failureDetails = '';
+            if (failedFiles.length > 0) {
+                const displayed = failedFiles.slice(0, 3);
+                failureDetails = '<div class="mt-2 pt-2 border-top text-dark"><small>';
+                displayed.forEach(f => {
+                    failureDetails += `<div>• ${f}</div>`;
+                });
+                if (failedFiles.length > 3) {
+                    failureDetails += `<div><em>... và ${failedFiles.length - 3} lỗi khác</em></div>`;
+                }
+                failureDetails += '</small></div>';
+            }
+
+            const toastHTML = `
+                <div id="${toastId}" class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="${bgColor} text-white d-flex justify-content-between align-items-center p-3">
+                        <div>
+                            <i class="bi ${icon} me-2"></i>
+                            <strong>
+                                ${successCount} file thành công
+                                ${failureCount > 0 ? ` · ${failureCount} thất bại` : ''}
+                            </strong>
+                            ${failureDetails}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white" onclick="document.getElementById('${toastId}').remove();"></button>
+                    </div>
+                </div>
+            `;
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = toastHTML;
+            container.appendChild(tempDiv.firstElementChild);
+
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                const elem = document.getElementById(toastId);
+                if (elem) {
+                    elem.classList.remove('show');
+                    elem.addEventListener('transitionend', () => elem.remove(), { once: true });
+                }
+            }, 5000);
+        }
+
+        async function uploadSingleFileToApi(file, folderId) {
+            const formData = new FormData();
+            formData.append("file", file);
+
+            if (folderId) {
+                formData.append("folder_id", folderId);
+                console.log(`[API] folder_id: ${folderId}`);
+            }
+
+            if (file.webkitRelativePath) {
+                formData.append("relative_path", file.webkitRelativePath);
+                console.log(`[API] relative_path: ${file.webkitRelativePath}`);
+            }
+
+            console.log(`[API] Sending request to /files/upload for: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
+
+            let res;
+            try {
+                res = await fetch(`${API_BASE_URL}/files/upload`, {
                     method: "POST",
                     headers: authHeaders(),
                     body: formData,
                 });
-
-                if (res.status === 401) {
-                    logout();
-                    return;
-                }
-
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    alert(err?.detail || `Upload thất bại: ${file.name}`);
-                }
+            } catch (fetchErr) {
+                console.error(`[API] Fetch error:`, fetchErr);
+                throw new Error(`Network error: ${fetchErr.message}`);
             }
 
+            console.log(`[API] Response status: ${res.status}`);
+
+            if (res.status === 401) {
+                console.error(`[API] 401 Unauthorized - logging out`);
+                logout();
+                return { unauthorized: true };
+            }
+
+            if (!res.ok) {
+                let err = {};
+                try {
+                    err = await res.json();
+                } catch {
+                    console.warn(`[API] Could not parse error response as JSON`);
+                }
+                console.error(`[API] Error response:`, err, `Status: ${res.status}`);
+                throw new Error(err?.detail || `HTTP ${res.status}: ${file.name}`);
+            }
+
+            const responseData = await res.json();
+            console.log(`[API] Success response:`, responseData);
+            return { unauthorized: false };
+        }
+
+        async function uploadSelectedFiles(event) {
+            const selectedFiles = Array.from(event.target.files || []);
+            if (!selectedFiles.length) return;
+
+            if (isUploadInProgress) {
+                console.warn('[Upload] Upload is already in progress.');
+                return;
+            }
+
+            setUploadUiState(true);
+
+            console.log(`[Upload] Selected ${selectedFiles.length} files:`, selectedFiles.map(f => f.name));
+
+            const { resolvedPath, activeFolderId } = parseUploadContext(event.target);
+            console.log(`[Upload] Target folder ID: ${activeFolderId}, Path:`, resolvedPath);
+            
+            // Clear input and context FIRST
             event.target.value = "";
-            await loadFiles();
-            await loadQuota();
+            delete event.target.dataset.folderId;
+            delete event.target.dataset.path;
+            
+            let successCount = 0;
+            let failureCount = 0;
+            const failedFiles = [];
+
+            try {
+                const uploadTasks = selectedFiles.map((file, index) => (async () => {
+                    console.log(`[Upload] Uploading file ${index + 1}/${selectedFiles.length}: ${file.name}`);
+                    const result = await uploadSingleFileToApi(file, activeFolderId);
+                    if (result.unauthorized) {
+                        throw new Error("UNAUTHORIZED");
+                    }
+                    return file.name;
+                })());
+
+                const outcomes = await Promise.allSettled(uploadTasks);
+
+                for (let i = 0; i < outcomes.length; i++) {
+                    const outcome = outcomes[i];
+                    const fileName = selectedFiles[i]?.name || "Unknown";
+
+                    if (outcome.status === 'fulfilled') {
+                        console.log(`[Upload] ✓ Successfully uploaded: ${fileName}`);
+                        successCount++;
+                        continue;
+                    }
+
+                    const reasonMessage = outcome.reason?.message || `Upload thất bại: ${fileName}`;
+                    if (reasonMessage === "UNAUTHORIZED") {
+                        console.log(`[Upload] Authorization failed, stopping upload`);
+                        return;
+                    }
+
+                    console.error(`[Upload] ✗ Failed to upload ${fileName}:`, outcome.reason);
+                    failureCount++;
+                    failedFiles.push(`${fileName}: ${reasonMessage}`);
+                }
+
+                console.log(`[Upload] Summary: ${successCount} success, ${failureCount} failed`);
+                console.log(`[Upload] All uploads completed, now refreshing UI...`);
+
+                // Update UI state AFTER all uploads complete
+                currentFolderId = activeFolderId;
+                currentPath = resolvedPath;
+                syncFolderState();
+                setActiveNav();
+
+                // Refresh file list and quota
+                console.log(`[Upload] Calling loadFiles and loadQuota...`);
+                await loadFiles(activeFolderId);
+                console.log(`[Upload] loadFiles completed`);
+
+                if (typeof renderBreadcrumb === 'function') {
+                    renderBreadcrumb();
+                    console.log(`[Upload] renderBreadcrumb completed`);
+                }
+
+                await loadQuota();
+                console.log(`[Upload] loadQuota completed`);
+
+                // Show toast notification with upload results
+                if (successCount > 0 || failureCount > 0) {
+                    showUploadToast(successCount, failureCount, failedFiles);
+                }
+            } finally {
+                setUploadUiState(false);
+            }
         }
 
 
@@ -837,6 +1912,7 @@
                         },
                         body: JSON.stringify({ username: newUsername })
                     });
+                                        syncFolderState();
                     const data = await response.json();
                     if (response.ok) {
                         messageDiv.textContent = 'Đổi tên đăng nhập thành công!';
@@ -850,6 +1926,7 @@
                         messageDiv.style.color = 'red';
                     }
                 } catch (error) {
+                    console.error('Change username failed:', error);
                     messageDiv.textContent = 'Lỗi kết nối đến máy chủ!';
                     messageDiv.style.color = 'red';
                 }
@@ -893,6 +1970,7 @@
                         messageDiv.style.color = 'red';
                     }
                 } catch (error) {
+                    console.error('Change password failed:', error);
                     messageDiv.textContent = 'Lỗi kết nối đến máy chủ!';
                     messageDiv.style.color = 'red';
                 }
@@ -908,6 +1986,21 @@
             viewMode = "list";
             if (currentSection === "files") renderFiles(files);
         };
+
+        const selectAllBtn = document.getElementById("filesSectionBtn");
+        if (selectAllBtn) {
+            selectAllBtn.onclick = toggleSelectAllVisibleFiles;
+        }
+
+        const shareSelectedBtn = document.getElementById("sharedSectionBtn");
+        if (shareSelectedBtn) {
+            shareSelectedBtn.onclick = shareSelectedFiles;
+        }
+
+        const deleteSelectedBtn = document.getElementById("trashSectionBtn");
+        if (deleteSelectedBtn) {
+            deleteSelectedBtn.onclick = deleteSelectedFiles;
+        }
 
         document.getElementById("shareNoExpiry").addEventListener("change", (event) => {
             const expiryInput = document.getElementById("shareExpiryAt");
@@ -997,6 +2090,7 @@
                             messageDiv.style.color = 'red';
                         }
                     } catch (error) {
+                        console.error('Rename failed:', error);
                         messageDiv.textContent = 'Lỗi kết nối hoặc đổi tên thất bại!';
                         messageDiv.style.color = 'red';
                     }

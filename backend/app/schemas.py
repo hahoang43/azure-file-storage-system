@@ -39,7 +39,8 @@ class ChangePasswordRequest(BaseModel):
 
 
 class SharedLinkCreateRequest(BaseModel):
-    file_id: int
+    file_id: Optional[int] = None
+    folder_id: Optional[int] = None
     expiration_days: Optional[int] = None
     expiration_value: Optional[int] = None
     expiration_unit: Optional[Literal["minute", "hour", "day", "month", "year"]] = None
@@ -48,7 +49,8 @@ class SharedLinkCreateRequest(BaseModel):
 
 class SharedLinkResponse(BaseModel):
     id: int
-    file_id: int
+    file_id: Optional[int] = None
+    folder_id: Optional[int] = None
     file_name: str
     file_size: int
     expires_at: Optional[datetime] = None
@@ -86,6 +88,23 @@ class FileListResponse(BaseModel):
     items: list[FileItemResponse]
 
 
+class TrashItemResponse(BaseModel):
+    id: int
+    name: str
+    size: int
+    content_type: str
+    blob_url: str
+    is_deleted: bool
+    created_at: datetime
+    updated_at: datetime
+    type: Literal["file", "folder"]
+    parent_id: Optional[int] = None
+
+
+class TrashListResponse(BaseModel):
+    items: list[TrashItemResponse]
+
+
 class FileActionResponse(BaseModel):
     success: bool
     message: str
@@ -101,6 +120,7 @@ class FolderResponse(BaseModel):
     name: str
     owner_id: int
     parent_id: int | None = None
+    size: int = 0
     created_at: datetime
     updated_at: datetime
 

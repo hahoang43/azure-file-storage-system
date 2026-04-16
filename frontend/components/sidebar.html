@@ -11,27 +11,27 @@
         </button>
         <ul class="dropdown-menu w-100 shadow" aria-labelledby="newDropdownBtn">
             <li>
-                <a class="dropdown-item d-flex align-items-center" href="#"
-                    onclick="openCreateFolderModal(); return false;">
+                <button type="button" class="dropdown-item d-flex align-items-center"
+                    onclick="openCreateFolderModal();">
                     <i class="bi bi-folder-plus me-2"></i> Thư mục mới
-                </a>
+                </button>
             </li>
             <li>
                 <hr class="dropdown-divider">
             </li>
             <li>
-                <a class="dropdown-item d-flex align-items-center" href="#"
-                    onclick="document.getElementById('sidebar-upload-file-input').click(); return false;">
+                <button type="button" class="dropdown-item d-flex align-items-center"
+                    onclick="prepareSidebarUpload && prepareSidebarUpload(event, 'sidebar-upload-file-input')">
                     <i class="bi bi-file-earmark-arrow-up me-2"></i> Tải tệp lên
-                </a>
+                </button>
                 <input type="file" id="sidebar-upload-file-input" style="display:none" multiple
                     onchange="uploadSelectedFiles && uploadSelectedFiles(event)">
             </li>
             <li>
-                <a class="dropdown-item d-flex align-items-center" href="#"
-                    onclick="document.getElementById('sidebar-upload-folder-input').click(); return false;">
+                <button type="button" class="dropdown-item d-flex align-items-center"
+                    onclick="prepareSidebarUpload && prepareSidebarUpload(event, 'sidebar-upload-folder-input')">
                     <i class="bi bi-folder-symlink me-2"></i> Tải thư mục lên
-                </a>
+                </button>
                 <input type="file" id="sidebar-upload-folder-input" style="display:none" webkitdirectory directory
                     multiple onchange="uploadSelectedFiles && uploadSelectedFiles(event)">
             </li>

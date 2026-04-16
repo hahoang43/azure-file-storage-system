@@ -12,7 +12,7 @@ const fileList = document.getElementById('file-list');
 // Chỉ thực thi event nếu đúng trang upload
 if (dropZone && uploadBtn && fileInput) {
     dropZone.addEventListener('click', (e) => {
-        if (e.target !== uploadBtn && fileInput) fileInput.click();
+        if (e.target === dropZone) fileInput.click();
     });
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
@@ -39,11 +39,13 @@ function authHeaders() {
 }
 
 function showEmptyState(show) {
+    if (!emptyState || !fileTable) return;
     emptyState.classList.toggle('hidden', !show);
     fileTable.classList.toggle('hidden', show);
 }
 
 function clearFileTable() {
+    if (!fileList) return;
     fileList.innerHTML = '';
 }
 
@@ -108,6 +110,7 @@ function humanFileSize(bytes) {
 }
 
 function addFileToTable(fileMeta, options = {}) {
+    if (!fileList) return;
     const { prepend = true } = options;
     showEmptyState(false);
 
@@ -158,7 +161,16 @@ function addFileToTable(fileMeta, options = {}) {
 }
 
 function createProgressItem(file) {
-    const progressId = 'prog-' + Math.random().toString(36).substr(2, 9);
+    if (!progressContainer) {
+        return {
+            progressId: '',
+            progressBar: { style: {} },
+            progressText: { textContent: '', style: {} },
+            progressItemDiv: { remove: () => {} },
+        };
+    }
+
+    const progressId = 'prog-' + Math.random().toString(36).slice(2, 11);
     const progressHTML = `
         <div class="progress-item" id="${progressId}">
             <i class="fa-solid fa-file-lines" style="color: var(--azure-blue); font-size: 24px;"></i>
@@ -189,8 +201,12 @@ function uploadFileReal(file) {
         const formData = new FormData();
 
         formData.append('file', file);
-        if (window.currentFolderId) {
-            formData.append('folder_id', window.currentFolderId);
+        const activeFolderId = globalThis.currentFolderId ?? null;
+        if (activeFolderId) {
+            formData.append('folder_id', activeFolderId);
+        }
+        if (file.webkitRelativePath) {
+            formData.append('relative_path', file.webkitRelativePath);
         }
         xhr.open('POST', `${API_URL}/files/upload`);
 
@@ -247,10 +263,17 @@ function uploadFileReal(file) {
 }
 
 async function handleFiles(files) {
-    if (!files || !files.length) return;
+    if (!files?.length) return;
     try {
         await Promise.all(Array.from(files).map(uploadFileReal));
-        await loadUploadedFiles();
+        if (typeof globalThis.loadFiles === 'function') {
+            await globalThis.loadFiles(globalThis.currentFolderId ?? null);
+            if (typeof globalThis.renderBreadcrumb === 'function') {
+                globalThis.renderBreadcrumb();
+            }
+        } else {
+            await loadUploadedFiles();
+        }
     } catch {
         // Lỗi đã được báo riêng theo từng file.
     }
@@ -263,7 +286,7 @@ function openCreateModal() {
 function logout() {
     localStorage.removeItem("mycloud_token");
     localStorage.removeItem("mycloud_username");
-    window.location.href = "auth.html";
+    globalThis.location.href = "auth.html";
 }
 
 function searchFile() {
@@ -275,8 +298,11 @@ function searchFile() {
 }
 
 if (uploadBtn) {
-    uploadBtn.addEventListener('click', () => fileInput && fileInput.click());
+    uploadBtn.addEventListener('click', () => fileInput?.click());
 }
 
-showEmptyState(true);
-loadUploadedFiles();
+globalThis.addEventListener('DOMContentLoaded', () => {
+    if (!emptyState || !fileTable || !fileList) return;
+    showEmptyState(true);
+    loadUploadedFiles();
+});
