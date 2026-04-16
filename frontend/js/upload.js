@@ -277,28 +277,6 @@ function searchFile() {
 if (uploadBtn) {
     uploadBtn.addEventListener('click', () => fileInput && fileInput.click());
 }
-if (dropZone) {
-    dropZone.addEventListener('click', (e) => {
-        if (e.target !== uploadBtn && fileInput) fileInput.click();
-    });
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('dragover');
-    });
-}
-if (fileInput) {
-    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
-};
-
-dropZone.addEventListener('dragleave', () => {
-    dropZone.classList.remove('dragover');
-});
-
-dropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('dragover');
-    handleFiles(e.dataTransfer.files);
-});
 
 showEmptyState(true);
 loadUploadedFiles();

@@ -11,7 +11,7 @@ load_dotenv()
 DB_HOST = "127.0.0.1"
 DB_PORT = 3307
 DB_USER = "root"
-DB_PASSWORD = "Hung123"
+DB_PASSWORD = "123456789"
 DB_NAME = "Mydatabase_cloud"
 
 # Bước tạo Database (Đã bỏ auth_plugin vì Hùng đã chỉnh trong Workbench rồi)

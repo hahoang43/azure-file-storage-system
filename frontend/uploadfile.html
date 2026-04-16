@@ -56,7 +56,7 @@
     </div>
 
     <script>
-        window.addEventListener('DOMContentLoaded', function () {
+        globalThis.addEventListener('DOMContentLoaded', function () {
             Promise.all([
                 fetch('components/sidebar.html').then(r => r.text()).then(html => {
                     document.getElementById('sidebar-container').innerHTML = html;
@@ -64,19 +64,32 @@
                 fetch('components/topbar.html').then(r => r.text()).then(html => {
                     document.getElementById('topbar-container').innerHTML = html;
                 })
-            ]).then(() => {
+            ]).then(async () => {
+                const userDisplay = document.getElementById("userDisplay");
                 let username = localStorage.getItem("mycloud_username");
-                if (!username) {
-                    const token = localStorage.getItem("mycloud_token");
-                    if (token) {
-                        try {
-                            const payload = JSON.parse(atob(token.split('.')[1]));
-                            username = payload.sub || payload.username || payload.name;
-                        } catch { }
+                const token = localStorage.getItem("mycloud_token");
+
+                if (token) {
+                    try {
+                        const response = await fetch("http://127.0.0.1:8000/auth/me", {
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                            },
+                        });
+                        if (response.ok) {
+                            const user = await response.json();
+                            if (user && user.username) {
+                                username = user.username;
+                                localStorage.setItem("mycloud_username", username);
+                            }
+                        }
+                    } catch (error) {
+                        console.debug("Khong lay duoc username tu /auth/me", error);
                     }
                 }
-                if (username && document.getElementById("userDisplay")) {
-                    document.getElementById("userDisplay").textContent = username;
+
+                if (username && userDisplay) {
+                    userDisplay.textContent = username;
                 }
 
                 const uploadNav = document.getElementById("nav-upload");
