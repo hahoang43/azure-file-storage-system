@@ -4,7 +4,10 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 from passlib.context import CryptContext
+from azure.storage.blob import BlobServiceClient
+from dotenv import load_dotenv
 
+load_dotenv()
 try:
     from azure.storage.blob import BlobSasPermissions, generate_blob_sas
 except ImportError:

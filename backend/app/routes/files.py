@@ -339,28 +339,35 @@ async def upload_file(
         db.add(file_obj)
         db.flush()
 
-    old_saved_path = _find_saved_file_path(current_user.id, file_obj.id)
-    saved_path = _owner_storage_dir(current_user.id) / f"{file_obj.id}__{safe_name}"
+    # Upload file lên Azure Blob Storage
+    from azure.storage.blob import BlobServiceClient
+    connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+    container_name = os.getenv("AZURE_CONTAINER_NAME")
     try:
-        saved_path.write_bytes(contents)
-        if old_saved_path and old_saved_path != saved_path and old_saved_path.exists():
-            old_saved_path.unlink(missing_ok=True)
+        blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+        container_client = blob_service_client.get_container_client(container_name)
+        blob_name = f"{current_user.id}/{file_obj.id}__{safe_name}"
+        container_client.upload_blob(blob_name, contents, overwrite=True)
 
-        public_base = os.getenv("PUBLIC_API_BASE_URL", "http://127.0.0.1:8000")
+        # Lấy URL truy cập blob
+        blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{container_name}/{blob_name}"
+
+        # Sinh ra SAS Token chỉ có quyền Read
+        from app.utils import build_readonly_blob_sas_url
+        public_blob_url = build_readonly_blob_sas_url(blob_url)
+
         file_obj.name = safe_name
         file_obj.size = size_bytes
         file_obj.content_type = file.content_type or "application/octet-stream"
         file_obj.folder_id = target_folder_id
-        file_obj.blob_url = f"{public_base}/files/public-content/{file_obj.id}"
+        file_obj.blob_url = public_blob_url
         current_user.used_storage = int(current_user.used_storage + storage_delta)
         db.commit()
         db.refresh(file_obj)
         return _to_file_item(file_obj)
     except Exception as exc:
         db.rollback()
-        if saved_path.exists():
-            saved_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=500, detail=f"Khong the tai file len: {exc}")
+        raise HTTPException(status_code=500, detail=f"Khong the tai file len Azure: {exc}")
 
 
 @router.delete(

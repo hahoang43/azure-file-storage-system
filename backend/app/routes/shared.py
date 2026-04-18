@@ -1,21 +1,31 @@
+from app import schemas
 import os
-import calendar
+import secrets
 from datetime import datetime, timedelta
-from secrets import token_urlsafe
-from typing import Annotated
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
-
-from app import models, schemas, utils
 from app.database import get_db
+from app.models import SharedLink, File
+from app.utils import build_readonly_blob_sas_url
+from app import models
+from fastapi import status
 from app.routes.auth import get_current_user
+from typing import Annotated
+# ==== ROUTER KHAI BÁO ĐẦU FILE ====
+router = APIRouter(prefix="/shared-links", tags=["Chia se file"])
 
-router = APIRouter(
-    prefix="/shared-links",
-    tags=["Chia se file"],
-)
+# ==== ROUTES ====
+
+@router.get("/link/{token}")
+def get_shared_link(token: str, db: Session = Depends(get_db)):
+    shared_link = db.query(SharedLink).filter(SharedLink.token == token).first()
+    if not shared_link:
+        raise HTTPException(status_code=404, detail="Không tìm thấy link chia sẻ")
+    file = db.query(File).filter(File.id == shared_link.file_id).first()
+    if not file:
+        raise HTTPException(status_code=404, detail="Không tìm thấy file")
+    # Luôn trả về link Azure Blob Storage có SAS Token
+    return {"public_url": file.blob_url}
 
 
 def _build_public_link(token: str) -> str:

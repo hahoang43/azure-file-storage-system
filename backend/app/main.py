@@ -1,15 +1,17 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 from azure.storage.blob import BlobServiceClient
 import uuid
 import os
+from sqlalchemy import text
 from datetime import datetime
-
 from app.routes import auth, shared, files, folder
-
-from .database import engine
 from . import models
+from dotenv import load_dotenv
+from app.routes import auth, shared, files, folder
+from .database import engine, get_db
+from sqlalchemy.orm import Session
+from fastapi import Depends
 
 # Khởi tạo Database
 models.Base.metadata.create_all(bind=engine)
@@ -98,16 +100,20 @@ app.include_router(shared.router)
 app.include_router(files.router)
 app.include_router(folder.router)
 
-# --- CẤU HÌNH AZURE BLOB STORAGE ---
-AZURE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=YOUR_ACCOUNT;AccountKey=YOUR_KEY;EndpointSuffix=core.windows.net"
-CONTAINER_NAME = "uploads" 
+# --- ĐỒNG BỘ BIẾN MÔI TRƯỜNG VỚI .env ---
+load_dotenv()
+AZURE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+CONTAINER_NAME = os.getenv("AZURE_CONTAINER_NAME", "user-files")
 
 @app.get("/")
 def read_root():
     return {"message": "Hệ thống Azure File Storage đang chạy mượt mà!"}
 
 @app.post("/api/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
     try:
         blob_service_client = BlobServiceClient.from_connection_string(AZURE_CONNECTION_STRING)
         container_client = blob_service_client.get_container_client(CONTAINER_NAME)
@@ -118,15 +124,29 @@ async def upload_file(file: UploadFile = File(...)):
 
         contents = await file.read()
         blob_client.upload_blob(contents, overwrite=True)
-        
+        file_url = blob_client.url
+
+
+        # Lưu thông tin file vào MySQL (đúng trường model File)
+        new_file = models.File(
+            name=file.filename,
+            size=len(contents),
+            content_type=file.content_type,
+            blob_url=file_url,
+            owner_id=1  # Thay bằng user_id thực tế nếu có xác thực đăng nhập
+        )
+        db.add(new_file)
+        db.commit()
+        db.refresh(new_file)
+
         file_metadata = {
-            "file_name": file.filename,
+            "file_id": new_file.id,
+            "file_name": new_file.name,
             "azure_name": unique_filename,
-            "size_bytes": len(contents),
-            "file_url": blob_client.url,
-            "created_at": datetime.now().isoformat()
+            "size_bytes": new_file.size,
+            "file_url": new_file.blob_url,
+            "created_at": new_file.created_at.isoformat()
         }
-        
         return {"status": "success", "message": "Upload thành công", "data": file_metadata}
 
     except Exception as e:
