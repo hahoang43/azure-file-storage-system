@@ -7,6 +7,7 @@ from pathlib import Path
 from app import models, schemas
 from app.database import get_db
 from app.routes.auth import get_current_user
+from app.utils import delete_blob_by_url
 
 router = APIRouter(prefix="/folders", tags=["Thư mục"])
 
@@ -66,6 +67,51 @@ def _calculate_folder_size(db: Session, owner_id: int, folder_id: int, include_d
         total_size += _calculate_folder_size(db, owner_id, subfolder[0], include_deleted=include_deleted)
 
     return total_size
+
+
+def _delete_folder_tree_permanently(
+    db: Session,
+    owner_id: int,
+    target_folder_id: int,
+    owner_dir: Path,
+) -> int:
+    reclaimed_storage = 0
+
+    child_ids = (
+        db.query(models.Folder.id)
+        .filter(models.Folder.owner_id == owner_id, models.Folder.parent_id == target_folder_id)
+        .all()
+    )
+    for (child_id,) in child_ids:
+        reclaimed_storage += _delete_folder_tree_permanently(db, owner_id, child_id, owner_dir)
+
+    file_items = (
+        db.query(models.File)
+        .filter(models.File.owner_id == owner_id, models.File.folder_id == target_folder_id)
+        .all()
+    )
+
+    for file_obj in file_items:
+        for saved_path in owner_dir.glob(f"{file_obj.id}__*"):
+            if saved_path.exists():
+                saved_path.unlink(missing_ok=True)
+
+        if file_obj.blob_url:
+            delete_blob_by_url(file_obj.blob_url)
+
+        db.query(models.SharedLink).filter(models.SharedLink.file_id == file_obj.id).delete()
+        reclaimed_storage += int(file_obj.size or 0)
+        db.delete(file_obj)
+
+    folder_obj = (
+        db.query(models.Folder)
+        .filter(models.Folder.id == target_folder_id, models.Folder.owner_id == owner_id)
+        .first()
+    )
+    if folder_obj:
+        db.delete(folder_obj)
+
+    return reclaimed_storage
 
 
 @router.post(
@@ -174,7 +220,7 @@ def rename_folder(
 @router.delete(
     "/{folder_id}",
     response_model=schemas.FileActionResponse,
-    responses={404: {"description": "Không tìm thấy thư mục"}},
+    responses={404: {"description": "Không tìm thấy thư mục"}, 500: {"description": "Khong the xoa file tren Azure"}},
 )
 def delete_folder(
     folder_id: int,
@@ -198,6 +244,18 @@ def delete_folder(
         for (child_id,) in child_ids:
             move_folder_tree_to_trash(child_id)
 
+        file_items = (
+            db.query(models.File)
+            .filter(
+                models.File.owner_id == current_user.id,
+                models.File.folder_id == target_folder_id,
+                models.File.is_deleted.is_(False),
+            )
+            .all()
+        )
+        for file_obj in file_items:
+            file_obj.is_deleted = True
+
         folder_obj = (
             db.query(models.Folder)
             .filter(models.Folder.id == target_folder_id, models.Folder.owner_id == current_user.id)
@@ -206,8 +264,13 @@ def delete_folder(
         if folder_obj:
             folder_obj.is_deleted = True
 
-    move_folder_tree_to_trash(folder.id)
-    db.commit()
+    try:
+        move_folder_tree_to_trash(folder.id)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     return {"success": True, "message": "Đã chuyển thư mục và toàn bộ nội dung vào thùng rác"}
 
 
@@ -271,6 +334,18 @@ def restore_folder(
 
         folder_obj.is_deleted = False
 
+        file_items = (
+            db.query(models.File)
+            .filter(
+                models.File.owner_id == current_user.id,
+                models.File.folder_id == target_folder_id,
+                models.File.is_deleted.is_(True),
+            )
+            .all()
+        )
+        for file_obj in file_items:
+            file_obj.is_deleted = False
+
         child_ids = (
             db.query(models.Folder.id)
             .filter(models.Folder.owner_id == current_user.id, models.Folder.parent_id == target_folder_id)
@@ -287,7 +362,7 @@ def restore_folder(
 @router.delete(
     "/{folder_id}/permanent",
     response_model=schemas.FileActionResponse,
-    responses={404: {"description": "Không tìm thấy thư mục"}},
+    responses={404: {"description": "Không tìm thấy thư mục"}, 500: {"description": "Khong the xoa file tren Azure"}},
 )
 def permanent_delete_folder(
     folder_id: int,
@@ -303,43 +378,12 @@ def permanent_delete_folder(
         raise HTTPException(status_code=404, detail=FOLDER_NOT_FOUND_MESSAGE)
 
     owner_dir = _owner_storage_dir(current_user.id)
-    reclaimed_storage = 0
+    try:
+        reclaimed_storage = _delete_folder_tree_permanently(db, current_user.id, folder.id, owner_dir)
+        current_user.used_storage = max(0, int(current_user.used_storage - reclaimed_storage))
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    def delete_folder_tree_recursively(target_folder_id: int):
-        nonlocal reclaimed_storage
-
-        child_ids = (
-            db.query(models.Folder.id)
-            .filter(models.Folder.owner_id == current_user.id, models.Folder.parent_id == target_folder_id)
-            .all()
-        )
-        for (child_id,) in child_ids:
-            delete_folder_tree_recursively(child_id)
-
-        file_items = (
-            db.query(models.File)
-            .filter(models.File.owner_id == current_user.id, models.File.folder_id == target_folder_id)
-            .all()
-        )
-
-        for file_obj in file_items:
-            for saved_path in owner_dir.glob(f"{file_obj.id}__*"):
-                if saved_path.exists():
-                    saved_path.unlink(missing_ok=True)
-
-            db.query(models.SharedLink).filter(models.SharedLink.file_id == file_obj.id).delete()
-            reclaimed_storage += int(file_obj.size or 0)
-            db.delete(file_obj)
-
-        folder_obj = (
-            db.query(models.Folder)
-            .filter(models.Folder.id == target_folder_id, models.Folder.owner_id == current_user.id)
-            .first()
-        )
-        if folder_obj:
-            db.delete(folder_obj)
-
-    delete_folder_tree_recursively(folder.id)
-    current_user.used_storage = max(0, int(current_user.used_storage - reclaimed_storage))
-    db.commit()
     return {"success": True, "message": "Đã xóa vĩnh viễn thư mục"}

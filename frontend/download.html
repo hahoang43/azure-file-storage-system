@@ -70,8 +70,10 @@ body {
     }
 
     function setButtonsEnabled(enabled) {
-      previewBtn.disabled = !enabled;
       downloadBtn.disabled = !enabled;
+      if (!previewBtn.classList.contains("d-none")) {
+        previewBtn.disabled = !enabled;
+      }
     }
 
     async function loadSharedInfo() {
@@ -91,6 +93,12 @@ body {
         const data = await res.json();
         fileNameEl.textContent = data.file_name || "Shared file";
         fileSizeEl.textContent = formatSize(data.file_size || 0);
+
+        const isFolder = data.item_type === "folder";
+        previewBtn.classList.toggle("d-none", isFolder || !data.preview_url);
+        downloadBtn.innerHTML = isFolder
+          ? '<i class="bi bi-download me-2"></i>Tải thư mục (.zip)'
+          : '<i class="bi bi-download me-2"></i>Tải xuống';
 
         previewBtn.onclick = () => {
           if (!data.preview_url) return;

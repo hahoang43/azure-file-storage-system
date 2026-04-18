@@ -64,11 +64,12 @@ class SharedLinkListResponse(BaseModel):
 
 
 class PublicDownloadInfoResponse(BaseModel):
+    item_type: Literal["file", "folder"] = "file"
     file_name: str
     file_size: int
     content_type: str
     expires_at: Optional[datetime] = None
-    preview_url: str
+    preview_url: Optional[str] = None
     download_url: str
 
 

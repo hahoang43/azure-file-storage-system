@@ -4,15 +4,18 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 from passlib.context import CryptContext
-from azure.storage.blob import BlobServiceClient
 from dotenv import load_dotenv
 
 load_dotenv()
 try:
     from azure.storage.blob import BlobSasPermissions, generate_blob_sas
+    from azure.storage.blob import BlobServiceClient
+    from azure.core.exceptions import ResourceNotFoundError
 except ImportError:
     BlobSasPermissions = None
     generate_blob_sas = None
+    BlobServiceClient = None
+    ResourceNotFoundError = None
 
 # 1. CÔNG CỤ BĂM MẬT KHẨU
 # Dùng pbkdf2_sha256 để tránh lỗi tương thích passlib+bcrypt trên một số môi trường.
@@ -70,16 +73,33 @@ def parse_blob_url(blob_url: str):
     return account_name, container_name, blob_name
 
 
+def _parse_connection_string(connection_string: str) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for segment in connection_string.split(";"):
+        if "=" not in segment:
+            continue
+        key, value = segment.split("=", 1)
+        result[key.strip()] = value.strip()
+    return result
+
+
 def build_readonly_blob_sas_url(blob_url: str, expires_at: datetime | None = None) -> str:
     """
     Build a short-lived read-only SAS URL for a blob.
     Falls back to original URL when Azure credentials are not configured.
     """
+    account_name, container_name, blob_name = parse_blob_url(blob_url)
     account_key = os.getenv("AZURE_STORAGE_ACCOUNT_KEY")
+    if not account_key:
+        connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
+        if connection_string:
+            conn_parts = _parse_connection_string(connection_string)
+            if conn_parts.get("AccountName") == account_name:
+                account_key = conn_parts.get("AccountKey")
+
     if not account_key or not BlobSasPermissions or not generate_blob_sas:
         return blob_url
 
-    account_name, container_name, blob_name = parse_blob_url(blob_url)
     sas_expiry = expires_at or (datetime.now() + timedelta(minutes=30))
 
     sas_token = generate_blob_sas(
@@ -91,3 +111,33 @@ def build_readonly_blob_sas_url(blob_url: str, expires_at: datetime | None = Non
         expiry=sas_expiry,
     )
     return f"{blob_url}?{sas_token}"
+
+
+def delete_blob_by_url(blob_url: str) -> bool:
+    """
+    Delete blob content in Azure Storage by its URL.
+    Returns True when a delete request is sent successfully.
+    Returns False when blob does not exist.
+    Raises ValueError/RuntimeError for configuration or client errors.
+    """
+    if not blob_url:
+        raise ValueError("blob_url is required")
+
+    if not BlobServiceClient:
+        raise RuntimeError("Azure Blob SDK is not available")
+
+    _, container_name, blob_name = parse_blob_url(blob_url)
+    connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+    if not connection_string:
+        raise RuntimeError("AZURE_STORAGE_CONNECTION_STRING is not configured")
+
+    blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+    blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+
+    try:
+        blob_client.delete_blob(delete_snapshots="include")
+        return True
+    except Exception as exc:
+        if ResourceNotFoundError and isinstance(exc, ResourceNotFoundError):
+            return False
+        raise RuntimeError(f"Khong the xoa blob tren Azure: {exc}") from exc

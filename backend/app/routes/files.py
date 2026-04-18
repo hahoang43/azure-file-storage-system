@@ -246,6 +246,11 @@ def list_trash(
         .order_by(models.File.updated_at.desc())
         .all()
     )
+    file_items = [
+        file_item
+        for file_item in file_items
+        if not _folder_has_deleted_ancestor(db, current_user.id, file_item.folder_id)
+    ]
 
     folder_items = [
         folder
@@ -425,7 +430,7 @@ def restore_from_trash(
 @router.delete(
     "/{file_id}/permanent",
     response_model=schemas.FileActionResponse,
-    responses={404: {"description": "Khong tim thay file"}},
+    responses={404: {"description": "Khong tim thay file"}, 500: {"description": "Khong the xoa file tren Azure"}},
 )
 def permanent_delete(
     file_id: int,
@@ -443,6 +448,12 @@ def permanent_delete(
     saved_path = _find_saved_file_path(current_user.id, file_obj.id)
     if saved_path and saved_path.exists():
         saved_path.unlink(missing_ok=True)
+
+    if file_obj.blob_url:
+        try:
+            delete_blob_by_url(file_obj.blob_url)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     db.query(models.SharedLink).filter(models.SharedLink.file_id == file_obj.id).delete()
 

@@ -1,13 +1,19 @@
-from app import schemas
+import calendar
+import io
 import os
-import secrets
+import zipfile
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, Body
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from azure.storage.blob import BlobServiceClient
 from sqlalchemy.orm import Session
+
+from app import models, schemas
 from app.database import get_db
 from app.models import SharedLink, File
-from app.utils import build_readonly_blob_sas_url
-from app import models
+from app.utils import build_readonly_blob_sas_url, parse_blob_url
 from fastapi import status
 from app.routes.auth import get_current_user
 from typing import Annotated
@@ -16,22 +22,46 @@ router = APIRouter(prefix="/shared-links", tags=["Chia se file"])
 
 # ==== ROUTES ====
 
-@router.get("/link/{token}")
-def get_shared_link(token: str, db: Session = Depends(get_db)):
+@router.get(
+    "/link/{token}",
+    responses={
+        400: {"description": "Link chia se thu muc chua ho tro tai truc tiep"},
+        404: {"description": "Khong tim thay link hoac file"},
+        410: {"description": "Link chia se da het han"},
+    },
+)
+def get_shared_link(token: str, db: Annotated[Session, Depends(get_db)]):
     shared_link = db.query(SharedLink).filter(SharedLink.token == token).first()
     if not shared_link:
         raise HTTPException(status_code=404, detail="Không tìm thấy link chia sẻ")
+    if shared_link.expires_at and shared_link.expires_at < datetime.now():
+        raise HTTPException(status_code=410, detail="Link chia sẻ đã hết hạn")
+
+    if not shared_link.file_id:
+        raise HTTPException(status_code=400, detail="Link chia sẻ thư mục chưa hỗ trợ tải trực tiếp")
+
     file = db.query(File).filter(File.id == shared_link.file_id).first()
-    if not file:
+    if not file or file.is_deleted:
         raise HTTPException(status_code=404, detail="Không tìm thấy file")
-    # Luôn trả về link Azure Blob Storage có SAS Token
-    return {"public_url": file.blob_url}
+
+    # Trả về SAS URL để người nhận link tải được file từ Azure.
+    now = datetime.now()
+    sas_expiry = now + timedelta(minutes=30)
+    if shared_link.expires_at:
+        sas_expiry = min(shared_link.expires_at, sas_expiry)
+
+    return {"public_url": build_readonly_blob_sas_url(file.blob_url, expires_at=sas_expiry)}
 
 
 def _build_public_link(token: str) -> str:
     public_base = os.getenv("PUBLIC_DOWNLOAD_BASE_URL", "http://127.0.0.1:5500/frontend/download.html")
     separator = "&" if "?" in public_base else "?"
     return f"{public_base}{separator}token={token}"
+
+
+def _build_public_folder_download_url(token: str) -> str:
+    api_base = os.getenv("PUBLIC_API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+    return f"{api_base}/shared-links/public/{token}/download"
 
 
 def _calculate_folder_size(db: Session, owner_id: int, folder_id: int) -> int:
@@ -58,6 +88,47 @@ def _calculate_folder_size(db: Session, owner_id: int, folder_id: int) -> int:
     for subfolder in subfolders:
         total_size += _calculate_folder_size(db, owner_id, subfolder[0])
     return total_size
+
+
+def _collect_folder_files_for_zip(
+    db: Session,
+    owner_id: int,
+    folder_id: int,
+    path_prefix: str = "",
+) -> list[tuple[models.File, str]]:
+    collected: list[tuple[models.File, str]] = []
+
+    files = (
+        db.query(models.File)
+        .filter(
+            models.File.owner_id == owner_id,
+            models.File.folder_id == folder_id,
+            models.File.is_deleted.is_(False),
+        )
+        .order_by(models.File.id.asc())
+        .all()
+    )
+
+    for file_obj in files:
+        relative_path = f"{path_prefix}/{file_obj.name}" if path_prefix else file_obj.name
+        collected.append((file_obj, relative_path))
+
+    subfolders = (
+        db.query(models.Folder)
+        .filter(
+            models.Folder.owner_id == owner_id,
+            models.Folder.parent_id == folder_id,
+            models.Folder.is_deleted.is_(False),
+        )
+        .order_by(models.Folder.id.asc())
+        .all()
+    )
+
+    for subfolder in subfolders:
+        next_prefix = f"{path_prefix}/{subfolder.name}" if path_prefix else subfolder.name
+        collected.extend(_collect_folder_files_for_zip(db, owner_id, subfolder.id, next_prefix))
+
+    return collected
 
 
 def _to_shared_link_response(db: Session, shared_link: models.SharedLink) -> schemas.SharedLinkResponse:
@@ -191,7 +262,7 @@ def create_shared_link(
 
     expires_at = _compute_expiration(payload)
 
-    token = token_urlsafe(24)
+    token = os.urandom(24).hex()
     public_url = _build_public_link(token)
 
     new_link = models.SharedLink(
@@ -270,7 +341,10 @@ def revoke_shared_link(
 @router.get(
     "/public/{token}",
     response_model=schemas.PublicDownloadInfoResponse,
-    responses={404: {"description": "Link/File khong ton tai"}, 410: {"description": "Link da het han"}},
+    responses={
+        404: {"description": "Link/File khong ton tai"},
+        410: {"description": "Link da het han"},
+    },
 )
 def get_public_download_info(token: str, db: Annotated[Session, Depends(get_db)]):
     shared_link = db.query(models.SharedLink).filter(models.SharedLink.token == token).first()
@@ -280,16 +354,38 @@ def get_public_download_info(token: str, db: Annotated[Session, Depends(get_db)]
     if shared_link.expires_at and shared_link.expires_at < datetime.now():
         raise HTTPException(status_code=410, detail="Link chia se da het han")
 
+    if shared_link.folder_id:
+        folder_obj = db.query(models.Folder).filter(models.Folder.id == shared_link.folder_id).first()
+        if not folder_obj or folder_obj.is_deleted:
+            raise HTTPException(status_code=404, detail="Thu muc khong con kha dung")
+
+        folder_size = _calculate_folder_size(db, folder_obj.owner_id, folder_obj.id)
+        return schemas.PublicDownloadInfoResponse(
+            item_type="folder",
+            file_name=f"{folder_obj.name}.zip",
+            file_size=folder_size,
+            content_type="application/zip",
+            expires_at=shared_link.expires_at,
+            preview_url=None,
+            download_url=_build_public_folder_download_url(token),
+        )
+
     file_obj = db.query(models.File).filter(models.File.id == shared_link.file_id).first()
     if not file_obj or file_obj.is_deleted:
         raise HTTPException(status_code=404, detail="File khong con kha dung")
 
     # Keep public URL short-lived to reduce exposure risk.
-    base_url = utils.build_readonly_blob_sas_url(file_obj.blob_url)
+    now = datetime.now()
+    sas_expiry = now + timedelta(minutes=30)
+    if shared_link.expires_at:
+        sas_expiry = min(shared_link.expires_at, sas_expiry)
+
+    base_url = build_readonly_blob_sas_url(file_obj.blob_url, expires_at=sas_expiry)
     preview_url = _set_query_param(base_url, "download", "0")
     download_url = _set_query_param(base_url, "download", "1")
 
     return schemas.PublicDownloadInfoResponse(
+        item_type="file",
         file_name=file_obj.name,
         file_size=file_obj.size,
         content_type=file_obj.content_type,
@@ -297,3 +393,50 @@ def get_public_download_info(token: str, db: Annotated[Session, Depends(get_db)]
         preview_url=preview_url,
         download_url=download_url,
     )
+
+
+@router.get(
+    "/public/{token}/download",
+    responses={
+        404: {"description": "Link/thu muc khong ton tai"},
+        410: {"description": "Link da het han"},
+        500: {"description": "Loi cau hinh Azure Storage"},
+    },
+)
+def download_public_shared_folder(token: str, db: Annotated[Session, Depends(get_db)]):
+    shared_link = db.query(models.SharedLink).filter(models.SharedLink.token == token).first()
+    if not shared_link:
+        raise HTTPException(status_code=404, detail="Link chia se khong ton tai")
+
+    if shared_link.expires_at and shared_link.expires_at < datetime.now():
+        raise HTTPException(status_code=410, detail="Link chia se da het han")
+
+    if not shared_link.folder_id:
+        raise HTTPException(status_code=404, detail="Link nay khong phai link thu muc")
+
+    folder_obj = db.query(models.Folder).filter(models.Folder.id == shared_link.folder_id).first()
+    if not folder_obj or folder_obj.is_deleted:
+        raise HTTPException(status_code=404, detail="Thu muc khong con kha dung")
+
+    connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+    if not connection_string:
+        raise HTTPException(status_code=500, detail="Thieu cau hinh Azure Storage")
+
+    blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+    folder_files = _collect_folder_files_for_zip(db, folder_obj.owner_id, folder_obj.id)
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+        if not folder_files:
+            zip_file.writestr("README.txt", "Folder is empty")
+
+        for file_obj, relative_path in folder_files:
+            _, container_name, blob_name = parse_blob_url(file_obj.blob_url)
+            blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+            blob_content = blob_client.download_blob().readall()
+            zip_file.writestr(relative_path, blob_content)
+
+    zip_buffer.seek(0)
+    download_name = f"{folder_obj.name}.zip"
+    headers = {"Content-Disposition": f'attachment; filename="{download_name}"'}
+    return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)

@@ -38,6 +38,35 @@
         .bulk-action-disabled {
             opacity: 0.55;
         }
+
+        .copy-toast-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(13, 110, 253, 0.96);
+            color: #fff;
+            border-radius: 999px;
+            padding: 0.45rem 0.7rem;
+            font-size: 0.85rem;
+            line-height: 1;
+            pointer-events: auto;
+        }
+
+        .copy-toast-floating {
+            position: fixed;
+            z-index: 99999;
+            transform: translateY(-50%);
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+            white-space: nowrap;
+        }
+
+        .copy-toast-badge i {
+            font-size: 0.95rem;
+        }
+
+        .copy-toast-badge span {
+            white-space: nowrap;
+        }
     </style>
 
 </head>
@@ -965,6 +994,24 @@
             }
         }
 
+        async function copySharedLink(link, anchorEl) {
+            if (!link) return;
+
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(link);
+                showCopyToast("Đã copy link chia sẻ.", anchorEl);
+                return;
+            }
+
+            const tempInput = document.createElement("input");
+            tempInput.value = link;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand("copy");
+            tempInput.remove();
+            showCopyToast("Đã copy link chia sẻ.", anchorEl);
+        }
+
         function renderFiles(list) {
             const container = document.getElementById("fileContainer");
             updateBulkActionButtons();
@@ -997,11 +1044,11 @@
                     if (file.type === "file") {
                         selectionCell = `<input type="checkbox" class="form-check-input file-select-checkbox" ${isSelected ? "checked" : ""} onclick="event.stopPropagation(); toggleFileSelection(${file.id}, this.checked)">`;
                         renameButton = `<button class='btn btn-sm btn-outline-secondary' onclick='openRenameModal(${file.id}, "${safeName}", "file")'>Đổi tên</button>
-                                        <button class='btn btn-sm btn-outline-success' onclick='shareItem(${file.id})'>Share</button>`;
+                                <button class='btn btn-sm btn-outline-success' onclick='shareItem(${file.id}, "file")'>Share</button>`;
                     } else {
                             selectionCell = `<input type="checkbox" class="form-check-input file-select-checkbox" ${isSelected ? "checked" : ""} onclick="event.stopPropagation(); toggleFolderSelection(${file.id}, this.checked)">`;
                             renameButton = `<button class='btn btn-sm btn-outline-secondary' onclick='openRenameModal(${file.id}, "${safeName}", "folder")'>Đổi tên</button>
-                                        <button class='btn btn-sm btn-outline-info' onclick='shareItem(${file.id})'>Share</button>`;
+                                <button class='btn btn-sm btn-outline-info' onclick='shareItem(${file.id}, "folder")'>Share</button>`;
                     }
 
                     return `
@@ -1039,7 +1086,7 @@
                                 <div class="small text-muted mb-2">${formatSize(file.size)}</div>
                             <div class="d-flex gap-2 mt-2" style="flex-wrap: wrap;">
                                 <button class="btn btn-sm btn-outline-secondary flex-fill" onclick="event.stopPropagation(); openRenameModal(${file.id}, '${safeName}', 'folder')">Đổi tên</button>
-                                <button class="btn btn-sm btn-outline-info flex-fill" onclick="event.stopPropagation(); shareItem(${file.id})">Share</button>
+                                <button class="btn btn-sm btn-outline-info flex-fill" onclick="event.stopPropagation(); shareItem(${file.id}, 'folder')">Share</button>
                                 <button class="btn btn-sm btn-outline-danger flex-fill" onclick="event.stopPropagation(); deleteItem(${file.id}, 'folder')">Xóa</button>
                             </div>
                         </div>
@@ -1063,7 +1110,7 @@
                                 <ul class="dropdown-menu" aria-labelledby="fileActionsDropdown${file.id}">
                                     <li><a class="dropdown-item" href="#" onclick="openItem(${file.id});return false;">Xem trước</a></li>
                                     <li><a class="dropdown-item" href="#" onclick="openRenameModal(${file.id}, '${safeName}', 'file');return false;">Đổi tên</a></li>
-                                    <li><a class="dropdown-item" href="#" onclick="shareItem(${file.id});return false;">Share</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="shareItem(${file.id}, 'file');return false;">Share</a></li>
                                     <li><a class="dropdown-item text-danger" href="#" onclick="deleteItem(${file.id});return false;">Xóa</a></li>
                                 </ul>
                             </div>
@@ -1097,6 +1144,10 @@
                 const dangerAction = isFolder
                     ? `<button class="btn btn-outline-danger flex-fill" onclick="permanentDeleteFolder(${file.id})">Xóa vĩnh viễn</button>`
                     : `<button class="btn btn-outline-danger flex-fill" onclick="permanentDelete(${file.id})">Xóa vĩnh viễn</button>`;
+                const nameLine = isFolder
+                    ? `<div class="fw-semibold"><i class="bi bi-folder-fill text-warning me-2"></i>${file.name}</div>`
+                    : `<div class="fw-semibold"><i class="bi ${detectIcon(file.name, file.content_type)} me-2"></i>${file.name}</div>
+                       <div class="small text-secondary">${formatDateTime(file.updated_at)}</div>`;
                 return `
             <div class="col-12 col-lg-6 col-xxl-4">
                 <div class="card p-3 h-100 shadow-sm border-0 ${isSelected ? "file-card-selected" : ""}">
@@ -1105,11 +1156,10 @@
                             <input type="checkbox" class="form-check-input file-select-checkbox mt-1" ${isSelected ? "checked" : ""}
                                 onclick="event.stopPropagation(); toggleTrashSelection(${file.id}, this.checked)">
                             <div>
-                                <div class="fw-semibold"><i class="bi ${detectIcon(file.name, file.content_type)} me-2"></i>${file.name}</div>
-                                <div class="small text-secondary">${formatDateTime(file.updated_at)}</div>
+                                ${nameLine}
                             </div>
                         </div>
-                        <span class="badge text-bg-light text-secondary">${formatSize(file.size)}</span>
+                        ${isFolder ? "" : `<span class="badge text-bg-light text-secondary">${formatSize(file.size)}</span>`}
                     </div>
                     <div class="d-flex gap-2 mt-3">
                         ${primaryAction}
@@ -1155,7 +1205,12 @@
                                         onclick="event.stopPropagation(); toggleSharedSelection(${link.id}, this.checked)">
                                 </td>
                                 <td><div class="fw-semibold">${link.fileName}</div><div class="small text-secondary">${formatSize(link.fileSize)}</div></td>
-                                <td><a href="${link.shareLink}" target="_blank" rel="noreferrer">${link.shareLink}</a></td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <a href="${link.shareLink}" target="_blank" rel="noreferrer">${link.shareLink}</a>
+                                        <button class="btn btn-sm btn-outline-secondary" type="button" data-link="${encodeURIComponent(link.shareLink)}" onclick="copySharedLink(decodeURIComponent(this.dataset.link), this)">Copy</button>
+                                    </div>
+                                </td>
                                 <td>${link.expiresAt ? formatDateTime(link.expiresAt) : "Không hết hạn"}${link.isExpired ? " <span class='badge text-bg-danger ms-1'>Hết hạn</span>" : ""}</td>
                                 <td>${formatDateTime(link.createdAt)}</td>
                                 <td class="text-end"><button class="btn btn-outline-danger btn-sm" onclick="revokeLink(${link.id})">Xóa</button></td>
@@ -1385,11 +1440,7 @@
             shareExpiryModal.show();
         }
 
-        async function shareItem(id) {
-            // Determine if this is a file or folder based on context
-            // Files are in the selectedFileIds set, so if it's not there, assume it's a folder
-            const isFile = selectedFileIds.has(id);
-            const itemType = isFile ? "file" : "folder";
+        async function shareItem(id, itemType = "file") {
             openShareModal([id], itemType);
         }
 
@@ -1738,6 +1789,47 @@
                     elem.addEventListener('transitionend', () => elem.remove(), { once: true });
                 }
             }, 5000);
+        }
+
+        function showCopyToast(message, anchorEl) {
+            const container = document.getElementById('upload-toast-container');
+            if (!container) return;
+
+            const toastId = `copy-toast-${Date.now()}`;
+            const toastHTML = `
+                <div id="${toastId}" class="copy-toast-badge copy-toast-floating" role="alert" aria-live="assertive" aria-atomic="true">
+                    <i class="bi bi-clipboard-check"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = toastHTML;
+            const toastElement = tempDiv.firstElementChild;
+            container.appendChild(toastElement);
+
+            if (anchorEl?.getBoundingClientRect) {
+                const rect = anchorEl.getBoundingClientRect();
+                const gap = 8;
+                const top = rect.top + rect.height / 2;
+                let left = rect.right + gap;
+
+                toastElement.style.top = `${top}px`;
+                toastElement.style.left = `${left}px`;
+
+                requestAnimationFrame(() => {
+                    const toastWidth = toastElement.offsetWidth;
+                    const viewportRight = window.innerWidth - 12;
+                    if (left + toastWidth > viewportRight) {
+                        left = rect.left - toastWidth - gap;
+                        toastElement.style.left = `${Math.max(12, left)}px`;
+                    }
+                });
+            }
+
+            setTimeout(() => {
+                toastElement.remove();
+            }, 500);
         }
 
         async function uploadSingleFileToApi(file, folderId) {
